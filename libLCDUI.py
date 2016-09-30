@@ -40,8 +40,8 @@ class ui(object):
         for n in range(dim[0]):
             self.displaylines.append('')
 
-    def register_widget(self, widget):
-        if type(widget) == textArea:
+    def add_widget(self, widget):
+        if type(widget) == text:
             self.areas.append(widget)
         elif type(widget) == notify:
             self.notifys.append(widget)
@@ -49,7 +49,7 @@ class ui(object):
             if self.log:
                 self.loglines.append("Error: Tried to register an illegal object")
 
-    def printRegisteredWidgets(self):
+    def print_widgets(self):
         print("Areas:")
         for i, widget in enumerate(self.areas):
             print(i + 1, widget.getProperties())
@@ -57,11 +57,14 @@ class ui(object):
         for i, widget in enumerate(self.notifys):
             print(i + 1, widget.getProperties())
 
-    def printlog(self):
+    def print_errors(self):
         print(self.loglines)
 
-    def print(self):
-        pass
+    def redraw(self):
+        for widget in self.areas:
+            pass
+        for widget in self.notifys:
+            pass
 
 
 class LCDUI_widget(object):
@@ -79,10 +82,10 @@ class LCDUI_widget(object):
         return "Type: %s, name: %s" % (type(self), self.name)
 
 
-class textArea(LCDUI_widget):
+class text(LCDUI_widget):
     """Areas are general-purpose displays without a timeout timer."""
     def __init__(self, name, posRC, sizeWH):
-        super(textArea, self).__init__(self, name, posRC, sizeWH)
+        super(text, self).__init__(self, name, posRC, sizeWH)
         self.contents = []
 
     def write(self, *args):
@@ -92,11 +95,11 @@ class textArea(LCDUI_widget):
     def get(self):
         return self.contents
 
-class listArea(LCDUI_widget):
+class list(LCDUI_widget):
     pass
 
 class notify(LCDUI_widget):
-    """Notifies are temporary widgets placed on top of the base areas."""
+    """Notifies are temporary widgets placed on top of the base areas. Call .display to start the display timer."""
     def __init__(self, name, posRC, sizeWH, timeout=0, type=0):
         super(notify, self).__init__(self, name, posRC, sizeWH)
         self.timeout = timeout
