@@ -23,54 +23,56 @@ import time
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
-    def __init__(self, display, dim=(4, 20), rgb=(1.0, 1.0, 1.0), log=False):
+    def __init__(self, display=None, dimensionsWH=(4, 20), rgb=(1.0, 1.0, 1.0), log=False):
         """Initialize the user interface. It requires an Adafruit_charLCD object.
         Most of the functions provided by libLCDUI are just ways to print to this
         object."""
 
         self.display = display
         self.areas = []
-        self.notifys = []
         self.rgb = rgb
-        self.dim = dim
+        self.dim = dimensionsWH
         self.log = log
         self.loglines = []
-
         self.displaylines = []
-        for n in range(dim[0]):
-            self.displaylines.append('')
+        self.clear_displaylines()
+
+    def clear_displaylines(self):
+        self.displaylines = []
+        for n in range(self.dim[0]):
+            self.displaylines.append(' ' * self.dim[1])
 
     def add_widget(self, widget):
-        if type(widget) == text:
-            self.areas.append(widget)
-        elif type(widget) == notify:
-            self.notifys.append(widget)
-        else:
-            if self.log:
-                self.loglines.append("Error: Tried to register an illegal object")
+        self.areas.append(widget)
 
     def print_widgets(self):
-        print("Areas:")
+        print("All registered objects in ui:")
         for i, widget in enumerate(self.areas):
-            print(i + 1, widget.getProperties())
-        print("Notifications:")
-        for i, widget in enumerate(self.notifys):
             print(i + 1, widget.getProperties())
 
     def print_errors(self):
         print(self.loglines)
 
     def redraw(self):
+        self.clear_displaylines()
         for widget in self.areas:
-            pass
-        for widget in self.notifys:
-            pass
+            posR, posC = widget.pos
+            for i, line in enumerate(widget.get()):
+                if i >= self.dim[0]:
+                    #This ensures that no lines are written beyond the capacity of the defined lcd
+                    break
+                self.displaylines[posR+i] = self.displaylines[posR+i][:posC] + line + self.displaylines[posR+i][posC+len(line):]
+        if self.display == None:
+            print("Output to stdout:")
+            for line in self.displaylines:
+                print("|", line[:self.dim[1]], "|")
 
+    def input_event(self, event):
+        pass
 
 class LCDUI_widget(object):
     """Base object for all LCDUI widgets."""
-    def __init__(self, parent, name, posRC, sizeWH):
-        self.name = name
+    def __init__(self, parent, posRC, sizeWH):
         self.pos = posRC
         self.size = sizeWH
         self.parent = parent
@@ -81,41 +83,47 @@ class LCDUI_widget(object):
     def getProperties(self):
         return "Type: %s, name: %s" % (type(self), self.name)
 
-
 class text(LCDUI_widget):
     """Areas are general-purpose displays without a timeout timer."""
-    def __init__(self, name, posRC, sizeWH):
-        super(text, self).__init__(self, name, posRC, sizeWH)
+    def __init__(self, posRC, sizeWH):
+        super(text, self).__init__(self, posRC, sizeWH)
         self.contents = []
 
     def write(self, *args):
+        self.contents = []
         for lines in args:
             self.contents.append(lines)
 
     def get(self):
+        for i, line in enumerate(self.contents):
+            self.contents[i] = line[:self.size[0]].ljust(self.size[0], " ")
         return self.contents
 
-class list(LCDUI_widget):
-    pass
-
 class notify(LCDUI_widget):
-    """Notifies are temporary widgets placed on top of the base areas. Call .display to start the display timer."""
-    def __init__(self, name, posRC, sizeWH, timeout=0, type=0):
-        super(notify, self).__init__(self, name, posRC, sizeWH)
+    """Notifies are temporary widgets. Call .display to start the display timer."""
+    def __init__(self, posRC, sizeWH, timeout=0, type=0):
+        super(notify, self).__init__(self, posRC, sizeWH)
         self.timeout = timeout
         self.type = type
         self.contents = []
         self.creationTime = time.time()
 
     def write(self, *args):
+        self.contents = []
         for lines in args:
             self.contents.append(lines)
+        self.show()
 
-    def display(self):
+    def show(self):
         self.creationTime = time.time()
 
     def get(self):
         if (time.time() - self.creationTime) < self.timeout:
+            for i, line in enumerate(self.contents):
+                self.contents[i] = line[:self.size[0]].ljust(self.size[0], " ")
             return self.contents
+        else:
+            return ""
 
-
+class list(LCDUI_widget):
+    pass

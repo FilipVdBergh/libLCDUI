@@ -1,20 +1,28 @@
 import libLCDUI
 import time
 
-ui = libLCDUI.ui(0)
+ui = libLCDUI.ui()
 
-info = libLCDUI.text("Info", (0, 0), (10, 2))
-volume = libLCDUI.text("Volume", (0, 11), (2, 1))
-warning = libLCDUI.notify("Warning", (0,0), (10,2), 5, 0)
+bg      = libLCDUI.text((0, 0), (20, 4))
+volume  = libLCDUI.text((1, 1), (7, 2))
+counter = libLCDUI.text((1, 10), (7, 2))
+warning = libLCDUI.notify((1,3), (14, 2), 3, 0)
 
-ui.add_widget(info)
+ui.add_widget(bg)
 ui.add_widget(volume)
+ui.add_widget(counter)
 ui.add_widget(warning)
-ui.print_widgets()
 
-warning.write("Connection Lost")
-print (warning.get())
+bg.write("." * 20, "." * 20, "." * 20, "." * 20)
+volume.write("Volume:", "  70%")
 
+
+i=0
 while True:
-    print(warning.get())
-    time.sleep(0.1)
+    ui.redraw()
+    time.sleep(0.5)
+    i += 1
+    counter.write("Counter:", ("%d" % i).center(7, "-"))
+    if i > 10:
+        i = 0
+        warning.write("There is 1 notification:", "> Battery low")
