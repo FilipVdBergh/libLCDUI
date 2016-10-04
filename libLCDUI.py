@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 
 import time
-from Adafruit_CharLCD import Adafruit_CharLCD
+#from Adafruit_CharLCD import Adafruit_CharLCD
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
