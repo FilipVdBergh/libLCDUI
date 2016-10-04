@@ -20,6 +20,7 @@
 # THE SOFTWARE.
 
 import time
+from Adafruit_CharLCD import Adafruit_CharLCD
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
@@ -67,6 +68,10 @@ class ui(object):
             print("Output to stdout:")
             for line in self.displaylines:
                 print("|", line[:self.width], "|")
+        else:
+            for i, line in enumerate(self.displaylines):
+                self.display.set_cursor(0,i)
+                self.display.message(line[:self.width])
 
     def input_event(self, event):
         pass
@@ -99,6 +104,8 @@ class LCDUI_widget(object):
         if self.visible:
             for i, line in enumerate(self.contents):
                 self.contents[i] = line[:self.width].ljust(self.width, " ")
+                if i > self.height:
+                    break
             return self.contents
         else:
             return ""
@@ -131,9 +138,51 @@ class notify(LCDUI_widget):
         if (time.time() - self.creationTime) < self.timeout:
             for i, line in enumerate(self.contents):
                 self.contents[i] = line[:self.width].ljust(self.width, " ")
+                if i > self.height:
+                    break
             return self.contents
         else:
             return ""
 
 class list(LCDUI_widget):
-    pass
+    """Users can select options from lists. The list may be longer than the number of showable lines."""
+
+    def __init__(self, row, col, width, height):
+        super(text, self).__init__(self, row, col, width, height)
+        self.contents = []
+        self.listindex = 0
+        self.top_item = 0
+
+    def write(self, *args):
+        self.contents = []
+        for line in args:
+            self.contents.append(line)
+
+    def add_item(self, *args):
+        for line in args:
+            self.contents.append(line)
+
+    def set_listindex(self, listindex):
+        self.listindex = listindex
+        if self.listindex < 0:
+            self.listindex = 0
+        if self.listindex > len(self.contents):
+            self.listindex = len(self.contents)
+
+    def move_down(self, steps = 1):
+        self.listindex = max(len(self.contents), self.listindex+1)
+
+    def move_up(self, steps = 1):
+        self.listindex = min(0, self.listindex-1)
+
+    def select(self, by_name = False):
+        if not(by_name):
+            return self.listindex
+        else:
+            return self.contents[self.listindex]
+
+    def get(self):
+        if self.visible:
+            pass
+        else:
+            return ""
