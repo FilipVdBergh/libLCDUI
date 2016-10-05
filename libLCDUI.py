@@ -186,3 +186,10 @@ class list(LCDUI_widget):
             pass
         else:
             return ""
+
+class progressbar(LCDUI_widget):
+    def __init__(self, row, col, width, height, current_value, max_value, vertical_orientation = False):
+        super(notify, self).__init__(self, row, col, width, height)
+        self.current_value = current_value
+        self.max_value = max_value
+        self.vertical_orientation = vertical_orientation
