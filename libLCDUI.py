@@ -20,7 +20,6 @@
 # THE SOFTWARE.
 
 import time
-#from Adafruit_CharLCD import Adafruit_CharLCD
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
@@ -60,11 +59,12 @@ class ui(object):
         self.clear()
         for widget in self.areas:
             for i, line in enumerate(widget.get()):
-                if i >= self.height:
+                if i >= self.height :
                     #This ensures that no lines are written beyond the capacity of the defined lcd
                     break
-                self.displaylines[widget.row+i] = self.displaylines[widget.row+i][:widget.col] + line + self.displaylines[widget.row+i][widget.col+len(line):]
-        if self.display == None:
+                else:
+                    self.displaylines[widget.row+i] = self.displaylines[widget.row+i][:widget.col] + line + self.displaylines[widget.row+i][widget.col+len(line):]
+        if self.display is None:
             print("Output to stdout:")
             for line in self.displaylines:
                 print("|", line[:self.width], "|")
@@ -76,6 +76,57 @@ class ui(object):
     def input_event(self, event):
         pass
 
+    def char(self, name):
+        code = [0,14,17,1,6,4,0,4]
+        if name == "vert_0":
+            code = [17,17,17,17,17,17,17,17]
+        elif name == "vert_25":
+            code = [17,17,17,17,17,17,31,31]
+        elif name == "vert_50":
+            code = [17,17,17,17,31,31,31,31]
+        elif name == "vert_75":
+            code = [17,17,31,31,31,31,31,31]
+        elif name == "vert_100":
+            code = [31,31,31,31,31,31,31,31]
+        elif name == "note":
+            code = [2,3,2,14,30,12,0,31]
+        elif name == "RE_2":
+            code = [14,2,8,14,0,31,8,31]
+        elif name == "RE_3":
+            code = [14,6,2,14,0,31,2,31]
+        elif name == "RE_4":
+            code = [2,10,14,2,0,31,1,31]
+        elif name == "sync":
+            code = [12,18,22,13,9,6,0,31]
+        elif name == "heart":
+            code = [0,10,31,31,14,4,0,31]
+        elif name == "left":
+            code = [0,2,6,14,30,14,6,2]
+        elif name == "right":
+            code = [0,8,12,14,15,14,12,8]
+        elif name == "up":
+            code = [0,4,4,14,14,31,31,0]
+        elif name == "down":
+            code = [0,31,31,14,14,4,4,0]
+        elif name == "empty":
+            code = [0,0,0,0,0,0,0,0]
+        elif name == "folder":
+            code = [0,28,19,17,17,31,0,31]
+        elif name == "clock":
+            code = [0,14,21,23,17,14,0,31]
+        elif name == "undefined":
+            code = [10,21,0,21,21,0,10,21]
+        else:
+            code = [10,21,0,21,21,0,10,21]
+        return code
+
+    def create_character(self, position, character):
+        if not(self.display is None):
+            self.display.create_char(position, self.char(character))
+            return True
+        else:
+            return False
+
 class LCDUI_widget(object):
     """Base object for all LCDUI widgets."""
     def __init__(self, parent, row, col, width, height):
@@ -85,7 +136,7 @@ class LCDUI_widget(object):
         self.height = height
         self.parent = parent
         self.visible = True
-
+        self.contents = []
     def show(self):
         self.visible = True
 
@@ -148,7 +199,7 @@ class list(LCDUI_widget):
     """Users can select options from lists. The list may be longer than the number of showable lines."""
 
     def __init__(self, row, col, width, height):
-        super(text, self).__init__(self, row, col, width, height)
+        super(list, self).__init__(self, row, col, width, height)
         self.contents = []
         self.listindex = 0
         self.top_item = 0
@@ -187,9 +238,64 @@ class list(LCDUI_widget):
         else:
             return ""
 
-class progressbar(LCDUI_widget):
-    def __init__(self, row, col, width, height, current_value, max_value, vertical_orientation = False):
-        super(notify, self).__init__(self, row, col, width, height)
+class generic_progress_bar(LCDUI_widget):
+    """A progressbar converts a value relative to a maximum value into a number of similar characters.
+    The function does not support half-full characters yet."""
+    def __init__(self, row, col, width, height, current_value, max_value, horizontal_orientation=True, reverse_direction=False, position_only = True):
+        super(generic_progress_bar, self).__init__(self, row, col, width, height)
         self.current_value = current_value
         self.max_value = max_value
-        self.vertical_orientation = vertical_orientation
+        self.horizontal_orientation = horizontal_orientation
+        self.reverse_direction = reverse_direction
+        self.fill = 0
+        if position_only:
+            self.char_before_marker = "-"
+        else:
+            self.char_before_marker = "*"
+        self.char_after_marker = "-"
+        self.marker_char = "*"
+
+    def set_value(self, current_value):
+        self.current_value = current_value
+        self.contents = []
+        if self.horizontal_orientation:
+            self.fill = int((min(self.current_value, self.max_value) / self.max_value) * self.width)
+            for _ in range(self.height):
+                if not(self.reverse_direction):
+                    self.contents.append((self.char_before_marker * self.fill) + self.marker_char + (self.char_after_marker * (self.width - self.fill - 1)))
+                else:
+                    self.contents.append((self.char_after_marker * (self.width - self.fill - 1)) + self.marker_char + (self.char_before_marker * self.fill))
+        else:
+            self.fill = int((min(self.current_value, self.max_value) / self.max_value) * self.height)
+            if not(self.reverse_direction):
+                for _ in range(self.fill):
+                    self.contents.append(self.char_before_marker * self.width)
+                self.contents.append(self.marker_char * self.width)
+                for _ in range(self.height - self.fill - 1):
+                    self.contents.append(self.char_after_marker * self.width)
+            else:
+                for _ in range(self.height - self.fill - 1):
+                    self.contents.append(self.char_after_marker * self.width)
+                self.contents.append(self.marker_char * self.width)
+                for _ in range(self.fill):
+                    self.contents.append(self.char_before_marker * self.width)
+
+class vertical_progress_bar(generic_progress_bar):
+    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+        super(vertical_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=False, reverse_direction=reverse_direction, position_only=False)
+
+class horizontal_progress_bar(generic_progress_bar):
+    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+        super(horizontal_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=True, reverse_direction=reverse_direction, position_only=False)
+
+class vertical_position_bar(generic_progress_bar):
+    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+        super(vertical_position_bar, self).__init__(row, col, width, height, current_value, max_value,
+                                                    horizontal_orientation=False, reverse_direction=reverse_direction,
+                                                    position_only=True)
+
+class horizontal_position_bar(generic_progress_bar):
+    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+        super(horizontal_position_bar, self).__init__(row, col, width, height, current_value, max_value,
+                                                      horizontal_orientation=True, reverse_direction=reverse_direction,
+                                                      position_only=True)
