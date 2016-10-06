@@ -20,6 +20,9 @@
 # THE SOFTWARE.
 
 import time
+import symbols
+
+
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
@@ -73,53 +76,6 @@ class ui(object):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
 
-    def input_event(self, event):
-        pass
-
-    def char(self, name):
-        code = [0,14,17,1,6,4,0,4]
-        if name == "vert_0":
-            code = [17,17,17,17,17,17,17,17]
-        elif name == "vert_25":
-            code = [17,17,17,17,17,17,31,31]
-        elif name == "vert_50":
-            code = [17,17,17,17,31,31,31,31]
-        elif name == "vert_75":
-            code = [17,17,31,31,31,31,31,31]
-        elif name == "vert_100":
-            code = [31,31,31,31,31,31,31,31]
-        elif name == "note":
-            code = [2,3,2,14,30,12,0,31]
-        elif name == "RE_2":
-            code = [14,2,8,14,0,31,8,31]
-        elif name == "RE_3":
-            code = [14,6,2,14,0,31,2,31]
-        elif name == "RE_4":
-            code = [2,10,14,2,0,31,1,31]
-        elif name == "sync":
-            code = [12,18,22,13,9,6,0,31]
-        elif name == "heart":
-            code = [0,10,31,31,14,4,0,31]
-        elif name == "left":
-            code = [0,2,6,14,30,14,6,2]
-        elif name == "right":
-            code = [0,8,12,14,15,14,12,8]
-        elif name == "up":
-            code = [0,4,4,14,14,31,31,0]
-        elif name == "down":
-            code = [0,31,31,14,14,4,4,0]
-        elif name == "empty":
-            code = [0,0,0,0,0,0,0,0]
-        elif name == "folder":
-            code = [0,28,19,17,17,31,0,31]
-        elif name == "clock":
-            code = [0,14,21,23,17,14,0,31]
-        elif name == "undefined":
-            code = [10,21,0,21,21,0,10,21]
-        else:
-            code = [10,21,0,21,21,0,10,21]
-        return code
-
     def create_character(self, position, character):
         if not(self.display is None):
             self.display.create_char(position, self.char(character))
@@ -137,6 +93,13 @@ class LCDUI_widget(object):
         self.parent = parent
         self.visible = True
         self.contents = []
+        self.timeout = 0
+        self.creationTime = time.time()
+
+    def start_countdown(self, duration):
+        self.creationTime = time.time()
+        self.timeout = duration
+
     def show(self):
         self.visible = True
 
@@ -146,12 +109,15 @@ class LCDUI_widget(object):
     def get_type(self):
         return "%s" % (type(self))
 
-    def write(self, *args):
+    def write(self, *args, timeout=0):
         self.contents = []
         for lines in args:
             self.contents.append(lines)
+        self.start_countdown(timeout)
 
     def get(self):
+        if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
+            self.hide()
         if self.visible:
             for i, line in enumerate(self.contents):
                 self.contents[i] = line[:self.width].ljust(self.width, " ")
@@ -169,31 +135,10 @@ class text(LCDUI_widget):
 
 class notify(LCDUI_widget):
     """Notifies are temporary widgets. Call .show to start the display timer."""
-    def __init__(self, row, col, width, height, timeout=0, type=0):
+    def __init__(self, row, col, width, height, timeout=0):
         super(notify, self).__init__(self, row, col, width, height)
         self.timeout = timeout
-        self.type = type
-        self.contents = []
         self.creationTime = time.time()
-
-    def write(self, *args):
-        self.contents = []
-        for lines in args:
-            self.contents.append(lines)
-        self.show()
-
-    def show(self):
-        self.creationTime = time.time()
-
-    def get(self):
-        if (time.time() - self.creationTime) < self.timeout:
-            for i, line in enumerate(self.contents):
-                self.contents[i] = line[:self.width].ljust(self.width, " ")
-                if i > self.height:
-                    break
-            return self.contents
-        else:
-            return ""
 
 class list(LCDUI_widget):
     """Users can select options from lists. The list may be longer than the number of showable lines."""
@@ -208,6 +153,7 @@ class list(LCDUI_widget):
         self.contents = []
         for line in args:
             self.contents.append(line)
+
 
     def add_item(self, *args):
         for line in args:
