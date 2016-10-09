@@ -38,11 +38,14 @@ class ui(object):
         self.clear()
 
     def clear(self):
+        """This clears the content lines."""
         self.displaylines = []
         for n in range(self.height):
             self.displaylines.append(' ' * self.width)
 
     def add_widget(self, widget):
+        """This adds a widget to the UI. The widgets are drawn in the order in which they are registered.
+        All widgets must be added, or they won't be drawn at all."""
         if (widget.row + widget.height <= self.height) and (widget.col + widget.width <= self.width):
             self.areas.append(widget)
             return True
@@ -51,14 +54,17 @@ class ui(object):
             return False
 
     def print_widgets(self):
+        """This prints a list of all widgets to stdout. Mostly useful for debugging your interface."""
         print("All registered objects in ui:")
         for i, widget in enumerate(self.areas):
-            print(i + 1, widget.get_type())
+            print("%s. Type: %s; Location: r%s,c%s; Size: %sx%s." % (i + 1, type(widget), widget.row, widget.col, widget.width, widget.height))
 
     def print_errors(self):
+        """This prints all generated errors for debugging."""
         print(self.loglines)
 
     def redraw(self):
+        """Add  to your main loop to draw the UI"""
         self.clear()
         for widget in self.areas:
             for i, line in enumerate(widget.get_contents()):
@@ -77,6 +83,7 @@ class ui(object):
                 self.display.message(line[:self.width])
 
     def create_character(self, position, character):
+        """This function registers new characters in the memory of the LCD. The argument is a listobject from symbols.py."""
         if not(self.display is None):
             self.display.create_char(position, character)
             return True
@@ -84,7 +91,8 @@ class ui(object):
             return False
 
 class LCDUI_widget(object):
-    """Base object for all LCDUI widgets."""
+    """Base object for all LCDUI widgets. Do not call this directly.
+    I should probably make it an abstract base class in the future."""
     def __init__(self, parent, row, col, width, height):
         self.row = row
         self.col = col
@@ -123,20 +131,24 @@ class LCDUI_widget(object):
             return ""
 
 class text(LCDUI_widget):
-    """Areas are general-purpose displays without a timeout timer."""
+    """Text areas are general-purpose text widgets."""
     def __init__(self, row, col, width, height):
         super(text, self).__init__(self, row, col, width, height)
         self.contents = []
 
 class notify(LCDUI_widget):
-    """Notifies are temporary widgets. Call .show to start the display timer."""
-    def __init__(self, row, col, width, height, timeout=0):
+    """Notifies are temporary widgets. Call .show to start the display timer.
+    The display timer is also started on write. The timeout is in seconds."""
+    def __init__(self, row, col, width, height, timeout=3):
         super(notify, self).__init__(self, row, col, width, height)
         self.timeout = timeout
         self.creationTime = time.time()
 
 class list(LCDUI_widget):
-    """Users can select options from lists. The list may be longer than the number of showable lines."""
+    """Users can select options from lists. The list may be longer than the number of showable lines.
+    You can write all options at once, clearing the list first. Or you can appende new options with the add_item function.
+    Call move_up and move_down to move the list indicator, to make the widget respond to input. The function get_selected
+    returns the currently selected item, either by name or by number."""
 
     def __init__(self, row, col, width, height):
         super(list, self).__init__(self, row, col, width, height)
@@ -146,6 +158,7 @@ class list(LCDUI_widget):
         self.top_item = 0
 
     def write(self, *args, timeout=0):
+        """Adds several items at once, first clearing the list."""
         self.items = []
         for lines in args:
             self.items.append(str(lines)[0:self.width])
@@ -153,11 +166,13 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def add_item(self, *args):
+        """Append an item to the bottom of the list."""
         for line in args:
             self.items.append(line)
         self.make_contents()
 
     def make_contents(self):
+        """This creates the contents based on the currentl;y viewable part of the list. For internal use in this class."""
         self.contents = []
         for i in range(self.height):
             self.contents.append(self.items[self.top_item + i])
@@ -168,6 +183,7 @@ class list(LCDUI_widget):
                 self.contents[i] = "  " + line
 
     def move_down(self, steps=1):
+        """Move the indicator down one or more steps."""
         self.listindex += steps
         if self.listindex >= len(self.items):
             self.listindex = 0
@@ -177,6 +193,7 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def move_up(self, steps=1):
+        """Move the indicator up one or more steps."""
         self.listindex -= steps
         if self.listindex < 0:
             self.listindex = len(self.items) - 1
@@ -186,12 +203,22 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def get_selected(self, by_name = False):
+        """This returns the currently selected item from the list, either by number (default) or by name."""
         if not(by_name):
             return self.listindex
         else:
             return self.items[self.listindex]
 
+    def get_items(self):
+        """Returns the items in the list widget."""
+        return self.items
+
+    def get_number_of_items(self):
+        """Returns the number of items in the list widget."""
+        return len(self.items)
+
     def get_contents(self):
+        """For internal use. This overrides the standard get_contents because not all oitems are viewable in list objects."""
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:
@@ -213,11 +240,18 @@ class generic_progress_bar(LCDUI_widget):
         self.horizontal_orientation = horizontal_orientation
         self.reverse_direction = reverse_direction
         self.fill = 0
+        #This code needs to be replaced to make prettier LCD-graphics based on symbols.py.
         if position_only:
-            self.char_before_marker = "-"
+            if self.horizontal_orientation:
+                self.char_before_marker = "-"
+            else:
+                self.char_before_marker = "|"
         else:
             self.char_before_marker = "*"
-        self.char_after_marker = "-"
+        if self.horizontal_orientation:
+            self.char_after_marker = "-"
+        else:
+            self.char_after_marker = "|"
         self.marker_char = "*"
 
     def write(self, current_value):
@@ -246,20 +280,24 @@ class generic_progress_bar(LCDUI_widget):
                     self.contents.append(self.char_before_marker * self.width)
 
 class vertical_progress_bar(generic_progress_bar):
+    """A vertical progress bar that fills up."""
     def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
         super(vertical_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=False, reverse_direction=reverse_direction, position_only=False)
 
 class horizontal_progress_bar(generic_progress_bar):
+    """A horizontal progress bar that fills up."""
     def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
         super(horizontal_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=True, reverse_direction=reverse_direction, position_only=False)
 
 class vertical_position_bar(generic_progress_bar):
+    """A vertical position bar draws and indicator on an interval."""
     def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
         super(vertical_position_bar, self).__init__(row, col, width, height, current_value, max_value,
                                                     horizontal_orientation=False, reverse_direction=reverse_direction,
                                                     position_only=True)
 
 class horizontal_position_bar(generic_progress_bar):
+    """A horizontal position bar draws and indicator on an interval."""
     def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
         super(horizontal_position_bar, self).__init__(row, col, width, height, current_value, max_value,
                                                       horizontal_orientation=True, reverse_direction=reverse_direction,
