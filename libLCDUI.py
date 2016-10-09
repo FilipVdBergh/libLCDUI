@@ -61,7 +61,7 @@ class ui(object):
     def redraw(self):
         self.clear()
         for widget in self.areas:
-            for i, line in enumerate(widget.get()):
+            for i, line in enumerate(widget.get_contents()):
                 if i >= self.height :
                     #This ensures that no lines are written beyond the capacity of the defined lcd
                     break
@@ -78,7 +78,7 @@ class ui(object):
 
     def create_character(self, position, character):
         if not(self.display is None):
-            self.display.create_char(position, self.char(character))
+            self.display.create_char(position, character)
             return True
         else:
             return False
@@ -106,23 +106,18 @@ class LCDUI_widget(object):
     def hide(self):
         self.visible = False
 
-    def get_type(self):
-        return "%s" % (type(self))
-
     def write(self, *args, timeout=0):
         self.contents = []
-        for lines in args:
-            self.contents.append(lines)
+        for i, lines in enumerate(args):
+            if i >= self.height:
+                break
+            self.contents.append(str(lines)[0:self.width])
         self.start_countdown(timeout)
 
-    def get(self):
+    def get_contents(self):
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:
-            for i, line in enumerate(self.contents):
-                self.contents[i] = line[:self.width].ljust(self.width, " ")
-                if i > self.height:
-                    break
             return self.contents
         else:
             return ""
@@ -146,41 +141,65 @@ class list(LCDUI_widget):
     def __init__(self, row, col, width, height):
         super(list, self).__init__(self, row, col, width, height)
         self.contents = []
+        self.items = []
         self.listindex = 0
         self.top_item = 0
 
-    def write(self, *args):
-        self.contents = []
-        for line in args:
-            self.contents.append(line)
-
+    def write(self, *args, timeout=0):
+        self.items = []
+        for lines in args:
+            self.items.append(str(lines)[0:self.width])
+        self.start_countdown(timeout)
+        self.make_contents()
 
     def add_item(self, *args):
         for line in args:
-            self.contents.append(line)
+            self.items.append(line)
+        self.make_contents()
 
-    def set_listindex(self, listindex):
-        self.listindex = listindex
-        if self.listindex < 0:
+    def make_contents(self):
+        self.contents = []
+        for i in range(self.height):
+            self.contents.append(self.items[self.top_item + i])
+        for i, line in enumerate(self.contents):
+            if i == self.listindex - self.top_item:
+                self.contents[i] = "> " + line
+            else:
+                self.contents[i] = "  " + line
+
+    def move_down(self, steps=1):
+        self.listindex += steps
+        if self.listindex >= len(self.items):
             self.listindex = 0
-        if self.listindex > len(self.contents):
-            self.listindex = len(self.contents)
+            self.top_item = 0
+        if self.listindex - self.top_item >= self.height:
+            self.top_item += steps
+        self.make_contents()
 
-    def move_down(self, steps = 1):
-        self.listindex = max(len(self.contents), self.listindex+1)
+    def move_up(self, steps=1):
+        self.listindex -= steps
+        if self.listindex < 0:
+            self.listindex = len(self.items) - 1
+            self.top_item = len(self.items) - self.height
+        if self.listindex - self.top_item < 0:
+            self.top_item -= steps
+        self.make_contents()
 
-    def move_up(self, steps = 1):
-        self.listindex = min(0, self.listindex-1)
-
-    def select(self, by_name = False):
+    def get_selected(self, by_name = False):
         if not(by_name):
             return self.listindex
         else:
-            return self.contents[self.listindex]
+            return self.items[self.listindex]
 
-    def get(self):
+    def get_contents(self):
+        if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
+            self.hide()
         if self.visible:
-            pass
+            for i, line in enumerate(self.contents):
+                self.contents[i] = line[:self.width].ljust(self.width, " ")
+                if i >= self.height:
+                    break
+            return self.contents
         else:
             return ""
 
@@ -201,7 +220,7 @@ class generic_progress_bar(LCDUI_widget):
         self.char_after_marker = "-"
         self.marker_char = "*"
 
-    def set_value(self, current_value):
+    def write(self, current_value):
         self.current_value = current_value
         self.contents = []
         if self.horizontal_orientation:

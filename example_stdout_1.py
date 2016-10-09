@@ -11,6 +11,20 @@ ui = libLCDUI.ui(width=16, height=4)
 #ui.add_widget(progress)
 #ui.add_widget(timer)
 
-while True:
+message  = libLCDUI.text(0, 0, 10, 3)
+count    = libLCDUI.text(0, 10, 6, 2)
+progress = libLCDUI.horizontal_progress_bar(3, 0, 16, 1, 0, 16)
+ui.add_widget(progress)
+ui.add_widget(message)
+ui.add_widget(count)
+
+
+i=0
+while i<=16:
     ui.redraw()
     time.sleep(0.1)
+    key = input("Button?")
+    message.write("Key:", key)
+    count.write("Count:", i)
+    progress.write(i)
+    i=i+1
