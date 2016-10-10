@@ -107,6 +107,7 @@ class LCDUI_widget(object):
     def start_countdown(self, duration):
         self.creationTime = time.time()
         self.timeout = duration
+        self.show()
 
     def show(self):
         self.visible = True
@@ -114,13 +115,13 @@ class LCDUI_widget(object):
     def hide(self):
         self.visible = False
 
-    def write(self, *args, timeout=0):
+    def write(self, *args):
         self.contents = []
         for i, lines in enumerate(args):
             if i >= self.height:
                 break
             self.contents.append(str(lines)[0:self.width])
-        self.start_countdown(timeout)
+        #self.start_countdown(timeout)
 
     def get_contents(self):
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
@@ -157,12 +158,12 @@ class list(LCDUI_widget):
         self.listindex = 0
         self.top_item = 0
 
-    def write(self, *args, timeout=0):
+    def write(self, *args):
         """Adds several items at once, first clearing the list."""
         self.items = []
         for lines in args:
             self.items.append(str(lines)[0:self.width])
-        self.start_countdown(timeout)
+        #self.start_countdown(timeout)
         self.make_contents()
 
     def add_item(self, *args):
