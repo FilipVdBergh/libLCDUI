@@ -259,14 +259,14 @@ class generic_progress_bar(LCDUI_widget):
         self.current_value = current_value
         self.contents = []
         if self.horizontal_orientation:
-            self.fill = int((min(self.current_value, self.max_value) / self.max_value) * self.width)
+            self.fill = int((min(self.current_value, self.max_value) / float(self.max_value)) * self.width)
             for _ in range(self.height):
                 if not(self.reverse_direction):
                     self.contents.append((self.char_before_marker * self.fill) + self.marker_char + (self.char_after_marker * (self.width - self.fill - 1)))
                 else:
                     self.contents.append((self.char_after_marker * (self.width - self.fill - 1)) + self.marker_char + (self.char_before_marker * self.fill))
         else:
-            self.fill = int((min(self.current_value, self.max_value) / self.max_value) * self.height)
+            self.fill = int((min(self.current_value, self.max_value) / float(self.max_value)) * self.height)
             if not(self.reverse_direction):
                 for _ in range(self.fill):
                     self.contents.append(self.char_before_marker * self.width)
