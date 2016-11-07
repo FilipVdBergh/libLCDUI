@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import libLCDUI
-import symbols
+import theme
 import time
 
 ui = libLCDUI.ui(width=16, height=4)

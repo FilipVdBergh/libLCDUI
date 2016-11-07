@@ -20,15 +20,14 @@
 # THE SOFTWARE.
 
 import time
-import symbols
-
-
+import re
+import theme
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
     def __init__(self, display=None, width=20, height=4, rgb=(1.0, 1.0, 1.0), log=False):
         self.display = display
-        self.areas = []
+        self.widgets = []
         self.rgb = rgb
         self.width = width
         self.height = height
@@ -36,54 +35,119 @@ class ui(object):
         self.loglines = []
         self.displaylines = []
         self.clear()
+        self.characters = {}
+        self.number_of_character_memory_slots = 8
+        self.theme_stdout = 0
+        self.theme_display = 1
 
     def clear(self):
-        """This clears the content lines."""
+        """Clear all content lines from the UI."""
         self.displaylines = []
         for n in range(self.height):
             self.displaylines.append(' ' * self.width)
 
     def add_widget(self, widget):
-        """This adds a widget to the UI. The widgets are drawn in the order in which they are registered.
-        All widgets must be added, or they won't be drawn at all."""
+        """Add a widget to the UI. The widgets are drawn in the order in which they are registered.
+        Widget objects are first created, and then added to the UI-object."""
         if (widget.row + widget.height <= self.height) and (widget.col + widget.width <= self.width):
-            self.areas.append(widget)
+            self.widgets.append(widget)
             return True
         else:
             self.loglines.append("Failed to add widget %s: widget out of bounds" % (widget))
             return False
 
     def print_widgets(self):
-        """This prints a list of all widgets to stdout. Mostly useful for debugging your interface."""
-        print("All registered objects in ui:")
-        for i, widget in enumerate(self.areas):
-            print("%s. Type: %s; Location: r%s,c%s; Size: %sx%s." % (i + 1, type(widget), widget.row, widget.col, widget.width, widget.height))
+        """Print a list of all widgets to stdout. Mostly useful for debugging your interface."""
+        for i, widget in enumerate(self.widgets):
+            print("%s. %s, Type: %s; Location: r%s,c%s; Size: %sx%s." % (i + 1, widget.name, type(widget), widget.row, widget.col, widget.width, widget.height))
+
+    def print_theme(self):
+        print("Theme name: %s, version %s" % (theme.name, theme.version))
+        print("Created by %s" % theme.creator)
+        if not (self.display is None):
+            print(self.characters)
 
     def print_errors(self):
         """This prints all generated errors for debugging."""
         print(self.loglines)
 
+    def print_all_info(self):
+        print("THEME INFO:")
+        self.print_theme()
+        print("-" * 40)
+        print("REGISTERED WIDGETS:")
+        self.print_widgets()
+        print("-" * 40)
+        print("ERRORS:")
+        self.print_errors()
+        print("-" * 40)
+
     def redraw(self):
-        """Add  to your main loop to draw the UI"""
+        """Redraw all widgets. Add this function to your main loop to update your display."""
         self.clear()
-        for widget in self.areas:
+        for widget in self.widgets:
             for i, line in enumerate(widget.get_contents()):
-                if i >= self.height :
-                    #This ensures that no lines are written beyond the capacity of the defined lcd
-                    break
-                else:
+                # The line is cut to the width permitted by the widget, but is also extended to allow for special characters.
+                # These characters are represented by several characters, but are just a single character in the output.
+                line = line[:widget.width+len(line)-self.length_of_string_with_special_characters(line)]
+                if i <= widget.height:
+                    #This ensures that no lines are written beyond the capacity of the widget
+                    #But I think I make a mistake here.
+                    # !! Also, if the line contains special characters, it may be cut short buy this function right now.
                     self.displaylines[widget.row+i] = self.displaylines[widget.row+i][:widget.col] + line + self.displaylines[widget.row+i][widget.col+len(line):]
         if self.display is None:
-            print("Output to stdout:")
+            # Because there is no lcd defined, the output goes to stdout. This draws a small frame around the output for
+            # debugging purposes.
+            self.displaylines = self.replace_special_characters_for_stdout(self.displaylines)
+            print("*" + "-" * self.width + "*")
             for line in self.displaylines:
-                print("|", line[:self.width], "|")
+                print("|" + line[:self.width] + "|")
+            print("*" + "-" * self.width + "*")
         else:
+            self.displaylines = self.replace_special_characters_for_display(self.displaylines)
             for i, line in enumerate(self.displaylines):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
 
+    def length_of_string_with_special_characters(self, s):
+        """Find the length of a string if it contains special characters. This is necessary so that such strings are
+        not cut off. Special characters are represented by ~[...], and should be counted as a single character."""
+        length_without_special_characters = len(re.sub("~\[(.*?)\]", "", s))
+        number_of_special_characters_found = len(re.findall("~\[(.*?)\]", s))
+        return length_without_special_characters + number_of_special_characters_found
+
+    def replace_special_characters_for_display(self, lines):
+        """Replaces codes for special characters by codes the LCD can interpret. Also registers special characters from
+        the theme file to the LCD memory. LCDs can generally display up to 8 special characaters. If this limit is
+        reached, all further special characters are replaced by question marks.
+        The index_for_theme argument is used to pick the definition from the theme list. It should probably always be
+        0 for the lcd themes, I can't imagine a different use for it."""
+        reply = []
+        self.characters = {}
+        # First find all special characters in the requested display lines, and add those to the dict self.characters{}:
+        for s in lines:
+            for n, match in enumerate(re.findall("~\[(.*?)\]", s)):
+                if n < self.number_of_character_memory_slots:
+                    lcd_character_code = "\\x0"+str(n)
+                    self.characters.update({match: lcd_character_code})
+                    self.create_character(n, theme.symbol[match][self.theme_display])
+                    s = s.replace("~[" + match + "]", lcd_character_code)
+                else:
+                    s = s.replace("~[" + match + "]", "?")
+            reply.append(s)
+        return reply
+
+    def replace_special_characters_for_stdout(self, lines):
+        """Replaces codes for special characters by characters for writing to stdout. """
+        reply = []
+        for s in lines:
+            for match in re.findall("~\[(.*?)\]", s):
+                s = s.replace("~[" + match + "]", theme.symbol[match][self.theme_stdout])
+            reply.append(s)
+        return reply
+
     def create_character(self, position, character):
-        """This function registers new characters in the memory of the LCD. The argument is a listobject from symbols.py."""
+        """This function registers new characters in the memory of the LCD."""
         if not(self.display is None):
             self.display.create_char(position, character)
             return True
@@ -103,6 +167,13 @@ class LCDUI_widget(object):
         self.contents = []
         self.timeout = 0
         self.creationTime = time.time()
+        self.name = "<name not defined>"
+
+    def set_name(self, name):
+        self.name = name
+
+    def get_name(self):
+        return self.name
 
     def start_countdown(self, duration):
         self.creationTime = time.time()
@@ -120,7 +191,7 @@ class LCDUI_widget(object):
         for i, lines in enumerate(args):
             if i >= self.height:
                 break
-            self.contents.append(str(lines)[0:self.width])
+            self.contents.append(str(lines))
         #self.start_countdown(timeout)
 
     def get_contents(self):
@@ -173,7 +244,7 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def make_contents(self):
-        """This creates the contents based on the currentl;y viewable part of the list. For internal use in this class."""
+        """This creates the contents based on the currently viewable part of the list. For internal use in this class."""
         self.contents = []
         for i in range(self.height):
             self.contents.append(self.items[self.top_item + i])
@@ -219,7 +290,7 @@ class list(LCDUI_widget):
         return len(self.items)
 
     def get_contents(self):
-        """For internal use. This overrides the standard get_contents because not all oitems are viewable in list objects."""
+        """This overrides the standard get_contents because not all items are viewable in list objects."""
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:
@@ -239,21 +310,26 @@ class generic_progress_bar(LCDUI_widget):
         self.current_value = current_value
         self.max_value = max_value
         self.horizontal_orientation = horizontal_orientation
+        self.position_only = position_only
         self.reverse_direction = reverse_direction
         self.fill = 0
-        #This code needs to be replaced to make prettier LCD-graphics based on symbols.py.
-        if position_only:
-            if self.horizontal_orientation:
-                self.char_before_marker = "-"
-            else:
-                self.char_before_marker = "|"
-        else:
-            self.char_before_marker = "*"
-        if self.horizontal_orientation:
-            self.char_after_marker = "-"
-        else:
-            self.char_after_marker = "|"
-        self.marker_char = "*"
+        #This code needs to be replaced to make prettier LCD-graphics based on theme.py.
+        if self.position_only and self.horizontal_orientation:
+            self.char_before_marker = "~[HLINE]"
+            self.char_after_marker = "~[HLINE]"
+            self.marker_char = "~[INDICATOR]"
+        if self.position_only and not(self.horizontal_orientation):
+            self.char_before_marker = "~[VLINE]"
+            self.char_after_marker = "~[VLINE]"
+            self.marker_char = "~[INDICATOR]"
+        if not(self.position_only) and self.horizontal_orientation:
+            self.char_before_marker = "~[INDICATOR]"
+            self.char_after_marker = "~[HLINE]"
+            self.marker_char = "~[INDICATOR]"
+        if not(self.position_only) and not(self.horizontal_orientation):
+            self.char_before_marker = "~[INDICATOR]"
+            self.char_after_marker = "~[VLINE]"
+            self.marker_char = "~[INDICATOR]"
 
     def write(self, current_value):
         self.current_value = current_value
@@ -269,10 +345,10 @@ class generic_progress_bar(LCDUI_widget):
             self.fill = int((min(self.current_value, self.max_value) / float(self.max_value)) * self.height)
             if not(self.reverse_direction):
                 for _ in range(self.fill):
-                    self.contents.append(self.char_before_marker * self.width)
+                    self.contents.append(self.char_before_marker[0] * self.width)
                 self.contents.append(self.marker_char * self.width)
                 for _ in range(self.height - self.fill - 1):
-                    self.contents.append(self.char_after_marker * self.width)
+                    self.contents.append(self.char_after_marker[0] * self.width)
             else:
                 for _ in range(self.height - self.fill - 1):
                     self.contents.append(self.char_after_marker * self.width)
