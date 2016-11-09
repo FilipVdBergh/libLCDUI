@@ -105,6 +105,8 @@ class ui(object):
             print("*" + "-" * self.width + "*")
         else:
             self.displaylines = self.replace_special_characters_for_display(self.displaylines)
+            for key in self.characters:
+                self.create_character(self.characters[key], theme.symbol[key][self.theme_display])
             for i, line in enumerate(self.displaylines):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
@@ -123,17 +125,20 @@ class ui(object):
         The index_for_theme argument is used to pick the definition from the theme list. It should probably always be
         0 for the lcd themes, I can't imagine a different use for it."""
         reply = []
-        self.characters = {}
-        # First find all special characters in the requested display lines, and add those to the dict self.characters{}:
+        # It shou;ld do something smart to manage the special characters, so the last used character is popped.
+        #self.characters = {}
+        n = len(self.characters)
         for s in lines:
-            for n, match in enumerate(re.findall("~\[(.*?)\]", s)):
-                if n < self.number_of_character_memory_slots:
-                    lcd_character_code = "\\x0"+str(n)
-                    self.characters.update({match: lcd_character_code})
-                    self.create_character(n, theme.symbol[match][self.theme_display])
-                    s = s.replace("~[" + match + "]", lcd_character_code)
+            for match in re.findall("~\[(.*?)\]", s):
+                if not(match in self.characters):
+                    if n < self.number_of_character_memory_slots:
+                        self.characters.update({match: n})
+                        s = s.replace("~[" + match + "]", theme.escape_codes[n])
+                        n += 1
+                    else:
+                        s = s.replace("~[" + match + "]", "?")
                 else:
-                    s = s.replace("~[" + match + "]", "?")
+                    s = s.replace("~[" + match + "]", theme.escape_codes[self.characters[match]])
             reply.append(s)
         return reply
 
