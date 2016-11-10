@@ -7,17 +7,6 @@ name = "Erres project"
 version = "2016-01"
 creator = "Filip van den Bergh"
 
-escape_codes = {
-    0: "\x00",
-    1: "\x01",
-    2: "\x02",
-    3: "\x03",
-    4: "\x04",
-    5: "\x05",
-    6: "\x06",
-    7: "\x07"
-}
-
 symbol = {
     "SB_VERT_0" :  (" ", [17, 17, 17, 17, 17, 17, 17, 17]),
     "SB_VERT_25":  (".", [7, 17, 17, 17, 17, 17, 31, 31]),

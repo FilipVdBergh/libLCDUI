@@ -23,6 +23,67 @@ import time
 import re
 import theme
 
+class character_register_manager(object):
+    """Manages the register of special characters"""
+    def __init__(self, number_of_characters=8):
+        self.number_of_slots = number_of_characters
+        self.character_names = []
+        self.character_codes = []
+        self.character_ages = []
+        self.escape_codes = {
+            0: "\x00",
+            1: "\x01",
+            2: "\x02",
+            3: "\x03",
+            4: "\x04",
+            5: "\x05",
+            6: "\x06",
+            7: "\x07"
+        }
+        self.character_age_counter = 0
+
+    def add_character(self, character_name, character_code):
+        self.character_age_counter += 1
+        if character_name in self.character_names:
+            #print "Character %s already present at index %s, age set to %s" % (character_name, self.character_names.index(character_name), self.character_age_counter)
+            self.character_ages[self.character_names.index(character_name)] = self.character_age_counter
+        else:
+            if len(self.character_names) >= self.number_of_slots:
+                self.remove_oldest_character()
+            self.character_names += [character_name]
+            self.character_codes += [character_code]
+            self.character_ages += [self.character_age_counter]
+        if max(self.character_ages)> self.number_of_slots + 1000:
+            for i in len(self.character_ages):
+                self.character_ages[i] -= self.number_of_slots
+                return self.character_names.index(character_name)
+
+    def remove_oldest_character(self):
+        oldest_character = self.character_ages.index(min(self.character_ages))
+        del self.character_names[oldest_character]
+        del self.character_codes[oldest_character]
+        del self.character_ages[oldest_character]
+
+    def length(self):
+        return len(self.character_names)
+
+    def get_escape_code(self, character):
+        return self.escape_codes[self.character_names.index(character)]
+
+
+    def get_slot(self, character):
+        return self.character_names[character]
+
+    def get_character(self, slot):
+        return self.character_names[slot]
+
+    def get_code(self, slot):
+        return self.character_codes[slot]
+
+    def print_register(self):
+        for i, character in enumerate(self.character_names):
+            print("Slot %s, character name %s, code %s, age %s" % (i, character, self.character_codes[i], self.character_ages[i]))
+
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
     def __init__(self, display=None, width=20, height=4, rgb=(1.0, 1.0, 1.0), log=False):
@@ -35,10 +96,10 @@ class ui(object):
         self.loglines = []
         self.displaylines = []
         self.clear()
-        self.characters = {}
         self.number_of_character_memory_slots = 8
         self.theme_stdout = 0
         self.theme_display = 1
+        self.register = character_register_manager(self.number_of_character_memory_slots)
 
     def clear(self):
         """Clear all content lines from the UI."""
@@ -64,14 +125,16 @@ class ui(object):
     def print_theme(self):
         print("Theme name: %s, version %s" % (theme.name, theme.version))
         print("Created by %s" % theme.creator)
-        if not (self.display is None):
-            print(self.characters)
 
     def print_errors(self):
         """This prints all generated errors for debugging."""
         print(self.loglines)
 
     def print_all_info(self):
+        print("LCD INFO:")
+        print("Object: %s"% self.display)
+        print("Size: %dx%d, special character slots: %s" % (self.height, self.width, self.number_of_character_memory_slots))
+        print("-" * 40)
         print("THEME INFO:")
         self.print_theme()
         print("-" * 40)
@@ -92,7 +155,6 @@ class ui(object):
                 line = line[:widget.width+len(line)-self.length_of_string_with_special_characters(line)]
                 if i <= widget.height:
                     #This ensures that no lines are written beyond the capacity of the widget
-                    #But I think I make a mistake here.
                     # !! Also, if the line contains special characters, it may be cut short buy this function right now.
                     self.displaylines[widget.row+i] = self.displaylines[widget.row+i][:widget.col] + line + self.displaylines[widget.row+i][widget.col+len(line):]
         if self.display is None:
@@ -105,8 +167,8 @@ class ui(object):
             print("*" + "-" * self.width + "*")
         else:
             self.displaylines = self.replace_special_characters_for_display(self.displaylines)
-            for key in self.characters:
-                self.create_character(self.characters[key], theme.symbol[key][self.theme_display])
+            for slot in range(self.register.length()):
+                self.create_character(slot, self.register.character_codes[slot])
             for i, line in enumerate(self.displaylines):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
@@ -121,24 +183,12 @@ class ui(object):
     def replace_special_characters_for_display(self, lines):
         """Replaces codes for special characters by codes the LCD can interpret. Also registers special characters from
         the theme file to the LCD memory. LCDs can generally display up to 8 special characaters. If this limit is
-        reached, all further special characters are replaced by question marks.
-        The index_for_theme argument is used to pick the definition from the theme list. It should probably always be
-        0 for the lcd themes, I can't imagine a different use for it."""
+        reached, all further special characters are replaced by question marks."""
         reply = []
-        # It shou;ld do something smart to manage the special characters, so the last used character is popped.
-        #self.characters = {}
-        n = len(self.characters)
         for s in lines:
             for match in re.findall("~\[(.*?)\]", s):
-                if not(match in self.characters):
-                    if n < self.number_of_character_memory_slots:
-                        self.characters.update({match: n})
-                        s = s.replace("~[" + match + "]", theme.escape_codes[n])
-                        n += 1
-                    else:
-                        s = s.replace("~[" + match + "]", "?")
-                else:
-                    s = s.replace("~[" + match + "]", theme.escape_codes[self.characters[match]])
+                self.register.add_character(match, theme.symbol[match][self.theme_display])
+                s = s.replace("~[" + match + "]", self.register.get_escape_code(match))
             reply.append(s)
         return reply
 
