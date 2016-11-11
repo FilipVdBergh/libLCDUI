@@ -49,7 +49,6 @@ class character_register_manager(object):
         if character_name in self.character_names:
             #print "Character %s already present at index %s, age set to %s" % (character_name, self.character_names.index(character_name), self.character_age_counter)
             self.character_ages[self.character_names.index(character_name)] = self.character_age_counter
-
         else:
             if len(self.character_names) >= self.number_of_slots:
                 new_position = self.character_ages.index(min(self.character_ages))
