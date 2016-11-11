@@ -43,20 +43,23 @@ class character_register_manager(object):
         self.character_age_counter = 0
 
     def add_character(self, character_name, character_code):
+        """This function returns True if the character is new to the register, otherwise it returns False."""
         self.character_age_counter += 1
         if character_name in self.character_names:
             #print "Character %s already present at index %s, age set to %s" % (character_name, self.character_names.index(character_name), self.character_age_counter)
             self.character_ages[self.character_names.index(character_name)] = self.character_age_counter
+            reply = False
         else:
             if len(self.character_names) >= self.number_of_slots:
                 self.remove_oldest_character()
             self.character_names += [character_name]
             self.character_codes += [character_code]
             self.character_ages += [self.character_age_counter]
+            reply = True
         if max(self.character_ages)> self.number_of_slots + 1000:
             for i in len(self.character_ages):
                 self.character_ages[i] -= self.number_of_slots
-                return self.character_names.index(character_name)
+        return reply
 
     def remove_oldest_character(self):
         oldest_character = self.character_ages.index(min(self.character_ages))
@@ -70,15 +73,14 @@ class character_register_manager(object):
     def get_escape_code(self, character):
         return self.escape_codes[self.character_names.index(character)]
 
-
     def get_slot(self, character):
-        return self.character_names[character]
+        return self.character_names.index(character)
 
     def get_character(self, slot):
         return self.character_names[slot]
 
-    def get_code(self, slot):
-        return self.character_codes[slot]
+    def get_code(self, character):
+        return self.character_codes[self.character_names.index(character)]
 
     def print_register(self):
         for i, character in enumerate(self.character_names):
@@ -157,6 +159,7 @@ class ui(object):
                     #This ensures that no lines are written beyond the capacity of the widget
                     # !! Also, if the line contains special characters, it may be cut short buy this function right now.
                     self.displaylines[widget.row+i] = self.displaylines[widget.row+i][:widget.col] + line + self.displaylines[widget.row+i][widget.col+len(line):]
+
         if self.display is None:
             # Because there is no lcd defined, the output goes to stdout. This draws a small frame around the output for
             # debugging purposes.
@@ -166,9 +169,9 @@ class ui(object):
                 print("|" + line[:self.width] + "|")
             print("*" + "-" * self.width + "*")
         else:
+            # print time.time() # The next step takes about 10ms
+
             self.displaylines = self.replace_special_characters_for_display(self.displaylines)
-            for slot in range(self.register.length()):
-                self.create_character(slot, self.register.character_codes[slot])
             for i, line in enumerate(self.displaylines):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
@@ -182,15 +185,26 @@ class ui(object):
 
     def replace_special_characters_for_display(self, lines):
         """Replaces codes for special characters by codes the LCD can interpret. Also registers special characters from
-        the theme file to the LCD memory. LCDs can generally display up to 8 special characaters. If this limit is
+        the theme file to the LCD memory. LCDs can generally display up to 8 special characters. If this limit is
         reached, all further special characters are replaced by question marks."""
+        t = time.time()
+        print("Special character replacement %s" % time.time())
         reply = []
         for s in lines:
+            print(" %s Loop over %s lines" % (s, time.time()-t))
             for match in re.findall("~\[(.*?)\]", s):
-                self.register.add_character(match, theme.symbol[match][self.theme_display])
+                print(" %s Regex" % time.time())
+                new_character = self.register.add_character(match, theme.symbol[match][self.theme_display])
+                print(" %s Character added to object" % time.time())
+                #Characters are only created if they didn't exist before. It's a slow process.
+                if new_character:
+                    self.create_character(self.register.get_slot(match), self.register.get_code(match))
+                print(" %s Character written to lcd" % time.time())
                 s = s.replace("~[" + match + "]", self.register.get_escape_code(match))
+                print(" %s Regex replacement" % time.time())
             reply.append(s)
         return reply
+
 
     def replace_special_characters_for_stdout(self, lines):
         """Replaces codes for special characters by characters for writing to stdout. """
@@ -372,43 +386,66 @@ class generic_progress_bar(LCDUI_widget):
         if self.position_only and self.horizontal_orientation:
             self.char_before_marker = "~[HLINE]"
             self.char_after_marker = "~[HLINE]"
-            self.marker_char = "~[INDICATOR]"
+            self.marker_char = {0: "~[PB_HORI_0]",
+                                1: "~[PB_HORI_25]",
+                                2: "~[PB_HORI_50]",
+                                3: "~[PB_HORI_75]",
+                                4: "~[PB_HORI_100]"}
         if self.position_only and not(self.horizontal_orientation):
             self.char_before_marker = "~[VLINE]"
             self.char_after_marker = "~[VLINE]"
-            self.marker_char = "~[INDICATOR]"
+            self.marker_char = {0: "~[PB_VERT_0]",
+                                1: "~[PB_VERT_25]",
+                                2: "~[PB_VERT_50]",
+                                3: "~[PB_VERT_75]",
+                                4: "~[PB_VERT_100]"}
         if not(self.position_only) and self.horizontal_orientation:
-            self.char_before_marker = "~[INDICATOR]"
+            self.char_before_marker = "~[SB_HORI_100]"
             self.char_after_marker = "~[HLINE]"
-            self.marker_char = "~[INDICATOR]"
+            self.marker_char = {0: "~[SB_HORI_0]",
+                                1: "~[SB_HORI_25]",
+                                2: "~[SB_HORI_50]",
+                                3: "~[SB_HORI_75]",
+                                4: "~[SB_HORI_100]"}
         if not(self.position_only) and not(self.horizontal_orientation):
-            self.char_before_marker = "~[INDICATOR]"
+            self.char_before_marker = "~[SB_VERT_100]"
             self.char_after_marker = "~[VLINE]"
-            self.marker_char = "~[INDICATOR]"
+            self.marker_char = {0: "~[SB_VERT_0]",
+                                1: "~[SB_VERT_25]",
+                                2: "~[SB_VERT_50]",
+                                3: "~[SB_VERT_75]",
+                                4: "~[SB_VERT_100]"}
 
     def write(self, current_value):
         self.current_value = current_value
         self.contents = []
+
+        fraction = min(self.current_value, self.max_value) / float(self.max_value)
         if self.horizontal_orientation:
-            self.fill = int((min(self.current_value, self.max_value) / float(self.max_value)) * self.width)
+            fill = int(fraction * self.width)
+            part = int((fraction * self.width % 1) * len(self.marker_char))
+        else:
+            part = int((fraction * self.height % 1) * len(self.marker_char))
+            fill = int(fraction * self.height)
+
+        if self.horizontal_orientation:
             for _ in range(self.height):
                 if not(self.reverse_direction):
-                    self.contents.append((self.char_before_marker * self.fill) + self.marker_char + (self.char_after_marker * (self.width - self.fill - 1)))
+                    self.contents.append((self.char_before_marker * fill) + self.marker_char[part] + (self.char_after_marker * (self.width - fill - 1)))
                 else:
-                    self.contents.append((self.char_after_marker * (self.width - self.fill - 1)) + self.marker_char + (self.char_before_marker * self.fill))
+                    self.contents.append((self.char_after_marker * (self.width - fill - 1)) + self.marker_char[part] + (self.char_before_marker * fill))
         else:
-            self.fill = int((min(self.current_value, self.max_value) / float(self.max_value)) * self.height)
             if not(self.reverse_direction):
-                for _ in range(self.fill):
+                for _ in range(fill):
                     self.contents.append(self.char_before_marker[0] * self.width)
-                self.contents.append(self.marker_char * self.width)
-                for _ in range(self.height - self.fill - 1):
+                self.contents.append(self.marker_char[part] * self.width)
+                for _ in range(self.height - fill - 1):
                     self.contents.append(self.char_after_marker[0] * self.width)
             else:
-                for _ in range(self.height - self.fill - 1):
+                for _ in range(self.height - fill - 1):
                     self.contents.append(self.char_after_marker * self.width)
-                self.contents.append(self.marker_char * self.width)
-                for _ in range(self.fill):
+                self.contents.append(self.marker_char[part] * self.width)
+                for _ in range(fill):
                     self.contents.append(self.char_before_marker * self.width)
 
 class vertical_progress_bar(generic_progress_bar):
