@@ -25,7 +25,7 @@ import theme
 
 class character_register_manager(object):
     """Manages the register of special characters"""
-    def __init__(self, number_of_characters=8):
+    def __init__(self, display, number_of_characters=8):
         self.number_of_slots = number_of_characters
         self.character_names = []
         self.character_codes = []
@@ -41,6 +41,7 @@ class character_register_manager(object):
             7: "\x07"
         }
         self.character_age_counter = 0
+        self.display = display
 
     def add_character(self, character_name, character_code):
         """This function returns True if the character is new to the register, otherwise it returns False."""
@@ -48,24 +49,22 @@ class character_register_manager(object):
         if character_name in self.character_names:
             #print "Character %s already present at index %s, age set to %s" % (character_name, self.character_names.index(character_name), self.character_age_counter)
             self.character_ages[self.character_names.index(character_name)] = self.character_age_counter
-            reply = False
+
         else:
             if len(self.character_names) >= self.number_of_slots:
-                self.remove_oldest_character()
-            self.character_names += [character_name]
-            self.character_codes += [character_code]
-            self.character_ages += [self.character_age_counter]
-            reply = True
-        if max(self.character_ages)> self.number_of_slots + 1000:
+                new_position = self.character_ages.index(min(self.character_ages))
+            else:
+                new_position = len(self.character_names)
+                self.character_names.append(1)
+                self.character_codes.append(1)
+                self.character_ages.append(1)
+            self.character_names[new_position] = character_name
+            self.character_codes[new_position] = character_code
+            self.character_ages[new_position] = self.character_age_counter
+            self.display.create_char(new_position, self.character_codes[new_position])
+        if max(self.character_ages) > self.number_of_slots + 1000:
             for i in len(self.character_ages):
                 self.character_ages[i] -= self.number_of_slots
-        return reply
-
-    def remove_oldest_character(self):
-        oldest_character = self.character_ages.index(min(self.character_ages))
-        del self.character_names[oldest_character]
-        del self.character_codes[oldest_character]
-        del self.character_ages[oldest_character]
 
     def length(self):
         return len(self.character_names)
@@ -101,7 +100,7 @@ class ui(object):
         self.number_of_character_memory_slots = 8
         self.theme_stdout = 0
         self.theme_display = 1
-        self.register = character_register_manager(self.number_of_character_memory_slots)
+        self.register = character_register_manager(self.display, self.number_of_character_memory_slots)
 
     def clear(self):
         """Clear all content lines from the UI."""
@@ -122,7 +121,7 @@ class ui(object):
     def print_widgets(self):
         """Print a list of all widgets to stdout. Mostly useful for debugging your interface."""
         for i, widget in enumerate(self.widgets):
-            print("%s. %s, Type: %s; Location: r%s,c%s; Size: %sx%s." % (i + 1, widget.name, type(widget), widget.row, widget.col, widget.width, widget.height))
+            print("%s. %s, Type: %s; Location: r%s,c%s; Size: %sx%s. Visible=%s" % (i + 1, widget.name, type(widget), widget.row, widget.col, widget.width, widget.height, widget.visible))
 
     def print_theme(self):
         print("Theme name: %s, version %s" % (theme.name, theme.version))
@@ -155,6 +154,10 @@ class ui(object):
                 # The line is cut to the width permitted by the widget, but is also extended to allow for special characters.
                 # These characters are represented by several characters, but are just a single character in the output.
                 line = line[:widget.width+len(line)-self.length_of_string_with_special_characters(line)]
+                if self.display is None:
+                    line = self.replace_special_characters_for_stdout(line)
+                else:
+                    line = self.replace_special_characters_for_display(line)
                 if i <= widget.height:
                     #This ensures that no lines are written beyond the capacity of the widget
                     # !! Also, if the line contains special characters, it may be cut short buy this function right now.
@@ -163,15 +166,12 @@ class ui(object):
         if self.display is None:
             # Because there is no lcd defined, the output goes to stdout. This draws a small frame around the output for
             # debugging purposes.
-            self.displaylines = self.replace_special_characters_for_stdout(self.displaylines)
             print("*" + "-" * self.width + "*")
             for line in self.displaylines:
                 print("|" + line[:self.width] + "|")
             print("*" + "-" * self.width + "*")
         else:
             # print time.time() # The next step takes about 10ms
-
-            self.displaylines = self.replace_special_characters_for_display(self.displaylines)
             for i, line in enumerate(self.displaylines):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
@@ -183,37 +183,27 @@ class ui(object):
         number_of_special_characters_found = len(re.findall("~\[(.*?)\]", s))
         return length_without_special_characters + number_of_special_characters_found
 
-    def replace_special_characters_for_display(self, lines):
+    def replace_special_characters_for_display(self, line):
         """Replaces codes for special characters by codes the LCD can interpret. Also registers special characters from
         the theme file to the LCD memory. LCDs can generally display up to 8 special characters. If this limit is
         reached, all further special characters are replaced by question marks."""
-        t = time.time()
-        print("Special character replacement %s" % time.time())
-        reply = []
-        for s in lines:
-            print(" %s Loop over %s lines" % (s, time.time()-t))
-            for match in re.findall("~\[(.*?)\]", s):
-                print(" %s Regex" % time.time())
-                new_character = self.register.add_character(match, theme.symbol[match][self.theme_display])
-                print(" %s Character added to object" % time.time())
-                #Characters are only created if they didn't exist before. It's a slow process.
-                if new_character:
-                    self.create_character(self.register.get_slot(match), self.register.get_code(match))
-                print(" %s Character written to lcd" % time.time())
-                s = s.replace("~[" + match + "]", self.register.get_escape_code(match))
-                print(" %s Regex replacement" % time.time())
-            reply.append(s)
-        return reply
+        # t = time.time()
+        #print("Special character replacement %s" % time.time())
+        #print(" %s Loop over %s lines" % (s, time.time()-t))
+        for match in re.findall("~\[(.*?)\]", line):
+            #print(" %s Regex" % time.time())
+            self.register.add_character(match, theme.symbol[match][self.theme_display])
+            #print(" %s Character added to object" % time.time())
+            #print(" %s Character written to lcd" % time.time())
+            line = line.replace("~[" + match + "]", self.register.get_escape_code(match))
+            #print(" %s Regex replacement" % time.time())
+        return line
 
-
-    def replace_special_characters_for_stdout(self, lines):
+    def replace_special_characters_for_stdout(self, line):
         """Replaces codes for special characters by characters for writing to stdout. """
-        reply = []
-        for s in lines:
-            for match in re.findall("~\[(.*?)\]", s):
-                s = s.replace("~[" + match + "]", theme.symbol[match][self.theme_stdout])
-            reply.append(s)
-        return reply
+        for match in re.findall("~\[(.*?)\]", line):
+            line = line.replace("~[" + match + "]", theme.symbol[match][self.theme_stdout])
+        return line
 
     def create_character(self, position, character):
         """This function registers new characters in the memory of the LCD."""
@@ -374,13 +364,12 @@ class list(LCDUI_widget):
 class generic_progress_bar(LCDUI_widget):
     """A progressbar converts a value relative to a maximum value into a number of similar characters.
     The function does not support half-full characters yet."""
-    def __init__(self, row, col, width, height, current_value, max_value, horizontal_orientation=True, reverse_direction=False, position_only = True):
+    def __init__(self, row, col, width, height, current_value, max_value, horizontal_orientation=True, position_only = True):
         super(generic_progress_bar, self).__init__(self, row, col, width, height)
         self.current_value = current_value
         self.max_value = max_value
         self.horizontal_orientation = horizontal_orientation
         self.position_only = position_only
-        self.reverse_direction = reverse_direction
         self.fill = 0
         #This code needs to be replaced to make prettier LCD-graphics based on theme.py.
         if self.position_only and self.horizontal_orientation:
@@ -401,7 +390,7 @@ class generic_progress_bar(LCDUI_widget):
                                 4: "~[PB_VERT_100]"}
         if not(self.position_only) and self.horizontal_orientation:
             self.char_before_marker = "~[SB_HORI_100]"
-            self.char_after_marker = "~[HLINE]"
+            self.char_after_marker = "~[SB_HORI_NONE]"
             self.marker_char = {0: "~[SB_HORI_0]",
                                 1: "~[SB_HORI_25]",
                                 2: "~[SB_HORI_50]",
@@ -409,7 +398,7 @@ class generic_progress_bar(LCDUI_widget):
                                 4: "~[SB_HORI_100]"}
         if not(self.position_only) and not(self.horizontal_orientation):
             self.char_before_marker = "~[SB_VERT_100]"
-            self.char_after_marker = "~[VLINE]"
+            self.char_after_marker = "~[SB_VERT_NONE]"
             self.marker_char = {0: "~[SB_VERT_0]",
                                 1: "~[SB_VERT_25]",
                                 2: "~[SB_VERT_50]",
@@ -420,54 +409,48 @@ class generic_progress_bar(LCDUI_widget):
         self.current_value = current_value
         self.contents = []
 
-        fraction = min(self.current_value, self.max_value) / float(self.max_value)
         if self.horizontal_orientation:
-            fill = int(fraction * self.width)
-            part = int((fraction * self.width % 1) * len(self.marker_char))
+            size = self.width
         else:
-            part = int((fraction * self.height % 1) * len(self.marker_char))
-            fill = int(fraction * self.height)
+            size = self.height
+
+        fraction = min(self.current_value, self.max_value) / float(self.max_value)
+        fill = int(fraction * size)
+        part = int((fraction * size % 1) * len(self.marker_char))
 
         if self.horizontal_orientation:
-            for _ in range(self.height):
-                if not(self.reverse_direction):
-                    self.contents.append((self.char_before_marker * fill) + self.marker_char[part] + (self.char_after_marker * (self.width - fill - 1)))
-                else:
-                    self.contents.append((self.char_after_marker * (self.width - fill - 1)) + self.marker_char[part] + (self.char_before_marker * fill))
-        else:
-            if not(self.reverse_direction):
-                for _ in range(fill):
-                    self.contents.append(self.char_before_marker[0] * self.width)
-                self.contents.append(self.marker_char[part] * self.width)
-                for _ in range(self.height - fill - 1):
-                    self.contents.append(self.char_after_marker[0] * self.width)
-            else:
-                for _ in range(self.height - fill - 1):
-                    self.contents.append(self.char_after_marker * self.width)
-                self.contents.append(self.marker_char[part] * self.width)
-                for _ in range(fill):
-                    self.contents.append(self.char_before_marker * self.width)
+            for n in range(self.height):
+                self.contents.append((self.char_before_marker * fill) + self.marker_char[part] +
+                                     (self.char_after_marker * (self.width - fill - 1)))
+        else:  # Vertical orientation
+            for n in range(self.height):
+                if n == (self.height - fill - 1):
+                    self.contents.append(self.marker_char[part])
+                elif n < (self.height - fill - 1):
+                    self.contents.append(self.char_after_marker)
+                elif n > (self.height - fill - 1):
+                    self.contents.append(self.char_before_marker)
 
 class vertical_progress_bar(generic_progress_bar):
     """A vertical progress bar that fills up."""
-    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
-        super(vertical_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=False, reverse_direction=reverse_direction, position_only=False)
+    def __init__(self, row, col, width, height, current_value, max_value):
+        super(vertical_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=False, position_only=False)
 
 class horizontal_progress_bar(generic_progress_bar):
     """A horizontal progress bar that fills up."""
-    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
-        super(horizontal_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=True, reverse_direction=reverse_direction, position_only=False)
+    def __init__(self, row, col, width, height, current_value, max_value):
+        super(horizontal_progress_bar, self).__init__(row, col, width, height, current_value, max_value, horizontal_orientation=True, position_only=False)
 
 class vertical_position_bar(generic_progress_bar):
     """A vertical position bar draws and indicator on an interval."""
-    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+    def __init__(self, row, col, width, height, current_value, max_value):
         super(vertical_position_bar, self).__init__(row, col, width, height, current_value, max_value,
-                                                    horizontal_orientation=False, reverse_direction=reverse_direction,
+                                                    horizontal_orientation=False,
                                                     position_only=True)
 
 class horizontal_position_bar(generic_progress_bar):
     """A horizontal position bar draws and indicator on an interval."""
-    def __init__(self, row, col, width, height, current_value, max_value, reverse_direction=False):
+    def __init__(self, row, col, width, height, current_value, max_value):
         super(horizontal_position_bar, self).__init__(row, col, width, height, current_value, max_value,
-                                                      horizontal_orientation=True, reverse_direction=reverse_direction,
+                                                      horizontal_orientation=True,
                                                       position_only=True)
