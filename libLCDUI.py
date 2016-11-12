@@ -24,7 +24,8 @@ import re
 import theme
 
 class character_register_manager(object):
-    """Manages the register of special characters"""
+    """Manages the register of special characters in the LCD. My LCD has 8 slots available for special characters. These
+    special characters are defined by a list in the theme.py file. """
     def __init__(self, display, number_of_characters=8):
         self.number_of_slots = number_of_characters
         self.character_names = []
@@ -44,10 +45,12 @@ class character_register_manager(object):
         self.display = display
 
     def add_character(self, character_name, character_code):
-        """This function returns True if the character is new to the register, otherwise it returns False."""
+        """Add a character to the special character register of the display. This function manages the limited number
+        of available slots for special characters by using information on which characters were used last and which
+        can be swapped from memory. Optimization of this function probably has a lot of effects on the UI, because
+        writing to the LCD memory seems slow."""
         self.character_age_counter += 1
         if character_name in self.character_names:
-            #print "Character %s already present at index %s, age set to %s" % (character_name, self.character_names.index(character_name), self.character_age_counter)
             self.character_ages[self.character_names.index(character_name)] = self.character_age_counter
         else:
             if len(self.character_names) >= self.number_of_slots:
@@ -61,9 +64,12 @@ class character_register_manager(object):
             self.character_codes[new_position] = character_code
             self.character_ages[new_position] = self.character_age_counter
             self.display.create_char(new_position, self.character_codes[new_position])
-        if max(self.character_ages) > self.number_of_slots + 1000:
-            for i in len(self.character_ages):
-                self.character_ages[i] -= self.number_of_slots
+        if max(self.character_ages) > self.number_of_slots + 100:
+            # Reset the ages so no overflow occurs
+            sorted_ages = sorted(self.character_ages)
+            for n, i in enumerate(self.character_ages):
+                self.character_ages[n] = sorted_ages.index(i)
+            self.character_age_counter = self.number_of_slots + 1
 
     def length(self):
         return len(self.character_names)
@@ -90,6 +96,7 @@ class ui(object):
         self.display = display
         self.widgets = []
         self.rgb = rgb
+        self.intensity = 0
         self.width = width
         self.height = height
         self.log = log
@@ -102,7 +109,7 @@ class ui(object):
         self.register = character_register_manager(self.display, self.number_of_character_memory_slots)
 
     def clear(self):
-        """Clear all content lines from the UI."""
+        """Clear all content lines from the UI. The UI-object manages clearing the display itself."""
         self.displaylines = []
         for n in range(self.height):
             self.displaylines.append(' ' * self.width)
@@ -116,34 +123,6 @@ class ui(object):
         else:
             self.loglines.append("Failed to add widget %s: widget out of bounds" % (widget))
             return False
-
-    def print_widgets(self):
-        """Print a list of all widgets to stdout. Mostly useful for debugging your interface."""
-        for i, widget in enumerate(self.widgets):
-            print("%s. %s, Type: %s; Location: r%s,c%s; Size: %sx%s. Visible=%s" % (i + 1, widget.name, type(widget), widget.row, widget.col, widget.width, widget.height, widget.visible))
-
-    def print_theme(self):
-        print("Theme name: %s, version %s" % (theme.name, theme.version))
-        print("Created by %s" % theme.creator)
-
-    def print_errors(self):
-        """This prints all generated errors for debugging."""
-        print(self.loglines)
-
-    def print_all_info(self):
-        print("LCD INFO:")
-        print("Object: %s"% self.display)
-        print("Size: %dx%d, special character slots: %s" % (self.height, self.width, self.number_of_character_memory_slots))
-        print("-" * 40)
-        print("THEME INFO:")
-        self.print_theme()
-        print("-" * 40)
-        print("REGISTERED WIDGETS:")
-        self.print_widgets()
-        print("-" * 40)
-        print("ERRORS:")
-        self.print_errors()
-        print("-" * 40)
 
     def redraw(self):
         """Redraw all widgets. Add this function to your main loop to update your display."""
@@ -175,6 +154,45 @@ class ui(object):
                 self.display.set_cursor(0,i)
                 self.display.message(line[:self.width])
 
+    def enable_display(self, switch):
+        self.display.enable_display(switch)
+
+    def set_backlight(self, intensity):
+        self.display.set_backlight(intensity)
+        self.intensity = intensity
+
+    def set_color(self, red, green, blue):
+        self.rgb = (red, green, blue)
+        self.display.set_color(red, green, blue)
+
+    def print_widgets(self):
+        """Print a list of all widgets to stdout. Mostly useful for debugging your interface."""
+        for i, widget in enumerate(self.widgets):
+            print("%s. %s, Type: %s; Location: r%s,c%s; Size: %sx%s. Visible=%s" % (i + 1, widget.name, type(widget), widget.row, widget.col, widget.width, widget.height, widget.visible))
+
+    def print_theme(self):
+        print("Theme name: %s, version %s" % (theme.name, theme.version))
+        print("Created by %s" % theme.creator)
+
+    def print_errors(self):
+        """This prints all generated errors for debugging."""
+        print(self.loglines)
+
+    def print_all_info(self):
+        print("LCD INFO:")
+        print("Object: %s"% self.display)
+        print("Size: %dx%d, special character slots: %s" % (self.height, self.width, self.number_of_character_memory_slots))
+        print("-" * 40)
+        print("THEME INFO:")
+        self.print_theme()
+        print("-" * 40)
+        print("REGISTERED WIDGETS:")
+        self.print_widgets()
+        print("-" * 40)
+        print("ERRORS:")
+        self.print_errors()
+        print("-" * 40)
+
     def length_of_string_with_special_characters(self, s):
         """Find the length of a string if it contains special characters. This is necessary so that such strings are
         not cut off. Special characters are represented by ~[...], and should be counted as a single character."""
@@ -203,14 +221,6 @@ class ui(object):
         for match in re.findall("~\[(.*?)\]", line):
             line = line.replace("~[" + match + "]", theme.symbol[match][self.theme_stdout])
         return line
-
-    def create_character(self, position, character):
-        """This function registers new characters in the memory of the LCD."""
-        if not(self.display is None):
-            self.display.create_char(position, character)
-            return True
-        else:
-            return False
 
 class LCDUI_widget(object):
     """Base object for all LCDUI widgets. Do not call this directly.
@@ -369,19 +379,17 @@ class generic_progress_bar(LCDUI_widget):
         self.max_value = max_value
         self.horizontal_orientation = horizontal_orientation
         self.position_only = position_only
-        self.fill = 0
-        #This code needs to be replaced to make prettier LCD-graphics based on theme.py.
         if self.position_only and self.horizontal_orientation:
-            self.char_before_marker = "~[HLINE]"
-            self.char_after_marker = "~[HLINE]"
+            self.char_before_marker = "~[PB_HORI_NONE]"
+            self.char_after_marker = "~[PB_HORI_NONE]"
             self.marker_char = {0: "~[PB_HORI_0]",
                                 1: "~[PB_HORI_25]",
                                 2: "~[PB_HORI_50]",
                                 3: "~[PB_HORI_75]",
                                 4: "~[PB_HORI_100]"}
         if self.position_only and not(self.horizontal_orientation):
-            self.char_before_marker = "~[VLINE]"
-            self.char_after_marker = "~[VLINE]"
+            self.char_before_marker = "~[PB_VERT_NONE]"
+            self.char_after_marker = "~[PB_VERT_NONE]"
             self.marker_char = {0: "~[PB_VERT_0]",
                                 1: "~[PB_VERT_25]",
                                 2: "~[PB_VERT_50]",
@@ -407,16 +415,13 @@ class generic_progress_bar(LCDUI_widget):
     def write(self, current_value):
         self.current_value = current_value
         self.contents = []
-
         if self.horizontal_orientation:
             size = self.width
         else:
             size = self.height
-
         fraction = min(self.current_value, self.max_value) / float(self.max_value)
         fill = int(fraction * size)
         part = int((fraction * size % 1) * len(self.marker_char))
-
         if self.horizontal_orientation:
             for n in range(self.height):
                 self.contents.append((self.char_before_marker * fill) + self.marker_char[part] +
@@ -424,11 +429,11 @@ class generic_progress_bar(LCDUI_widget):
         else:  # Vertical orientation
             for n in range(self.height):
                 if n == (self.height - fill - 1):
-                    self.contents.append(self.marker_char[part])
+                    self.contents.append(self.marker_char[part] * self.width)
                 elif n < (self.height - fill - 1):
-                    self.contents.append(self.char_after_marker)
+                    self.contents.append(self.char_after_marker * self.width)
                 elif n > (self.height - fill - 1):
-                    self.contents.append(self.char_before_marker)
+                    self.contents.append(self.char_before_marker * self.width)
 
 class vertical_progress_bar(generic_progress_bar):
     """A vertical progress bar that fills up."""
