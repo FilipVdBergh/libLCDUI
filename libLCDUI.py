@@ -238,31 +238,45 @@ class LCDUI_widget(object):
         self.name = "<name not defined>"
 
     def set_name(self, name):
+        """Sets the name of the widget. Names are not required, but may make managing larger projects easier. The names
+        of registered widgets are displayed using the ui.print_widgets function."""
         self.name = name
 
     def get_name(self):
+        """Returns the name of a widget. By default, widgets don't have names. Names are not required, but may make
+        managing larger projects easier. The names of registered widgets are displayed using the ui.print_widgets
+        function."""
         return self.name
 
     def start_countdown(self, duration):
+        """After the duration (in seconds) has expired, the widget is hidden. At the start of the timeout, widgets are
+        always displayed."""
         self.creationTime = time.time()
         self.timeout = duration
         self.show()
 
     def show(self):
+        """Shows (unhides) the widget. This does not guarantee that the widget is visible, as other widgets may be on
+        top."""
         self.visible = True
 
     def hide(self):
+        """Hides the widget by not drawing it to the buffer."""
         self.visible = False
 
     def write(self, *args):
+        """Writes information to the widget for diplaying on the LCD. The widget manages what to do with the
+        information. Text widgets just display text, but progress bars, for example, use this function to update their
+        value."""
         self.contents = []
         for i, lines in enumerate(args):
             if i >= self.height:
                 break
             self.contents.append(str(lines))
-        #self.start_countdown(timeout)
 
     def get_contents(self):
+        """This function is used by the UI object to obtain the contents of a widget. This function also checks to see
+        if the timeout of a widget has expired. Expired functiona are then automatically hidden."""
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:
@@ -277,7 +291,7 @@ class text(LCDUI_widget):
         self.contents = []
 
 class notify(LCDUI_widget):
-    """Notifies are temporary widgets. Call .show to start the display timer.
+    """Notifies are temporary text widgets. Call .show to start the display timer.
     The display timer is also started on write. The timeout is in seconds."""
     def __init__(self, row, col, width, height, timeout=3):
         super(notify, self).__init__(self, row, col, width, height)
@@ -296,9 +310,15 @@ class list(LCDUI_widget):
         self.items = []
         self.listindex = 0
         self.top_item = 0
+        self.selected = "~[RIGHT]"
+        self.not_selected = " "
+
+    def set_indicator(self, selected, not_selected =" "):
+        self.selected = selected
+        self.not_selected = not_selected
 
     def write(self, *args):
-        """Adds several items at once, first clearing the list."""
+        """Adds a list of several items at once, first clearing the list."""
         self.items = []
         for lines in args:
             self.items.append(str(lines)[0:self.width])
@@ -312,18 +332,19 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def make_contents(self):
-        """This creates the contents based on the currently viewable part of the list. For internal use in this class."""
+        """This creates the contents based on the currently viewable part of the list. For internal use in this
+        class."""
         self.contents = []
         for i in range(self.height):
             self.contents.append(self.items[self.top_item + i])
         for i, line in enumerate(self.contents):
             if i == self.listindex - self.top_item:
-                self.contents[i] = "> " + line
+                self.contents[i] = self.selected + line
             else:
-                self.contents[i] = "  " + line
+                self.contents[i] = self.not_selected + line
 
     def move_down(self, steps=1):
-        """Move the indicator down one or more steps."""
+        """Move the indicator down one or more steps. Usually, this function is called in response to a button press."""
         self.listindex += steps
         if self.listindex >= len(self.items):
             self.listindex = 0
@@ -333,7 +354,7 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def move_up(self, steps=1):
-        """Move the indicator up one or more steps."""
+        """Move the indicator up one or more steps. Usually, this function is called in response to a button press."""
         self.listindex -= steps
         if self.listindex < 0:
             self.listindex = len(self.items) - 1
@@ -343,7 +364,8 @@ class list(LCDUI_widget):
         self.make_contents()
 
     def get_selected(self, by_name = False):
-        """This returns the currently selected item from the list, either by number (default) or by name."""
+        """This returns the currently selected item from the list, either by number (default) or by name.
+        Usually, this function is called in response to a button press."""
         if not(by_name):
             return self.listindex
         else:
@@ -358,12 +380,13 @@ class list(LCDUI_widget):
         return len(self.items)
 
     def get_contents(self):
-        """This overrides the standard get_contents because not all items are viewable in list objects."""
+        """This function is used by the UI object to obtain the contents of a widget. This overrides the standard
+        get_contents of the parent object because not all items are viewable in list objects."""
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:
             for i, line in enumerate(self.contents):
-                self.contents[i] = line[:self.width].ljust(self.width, " ")
+                self.contents[i] = line #[:self.width].ljust(self.width, " ")
                 if i >= self.height:
                     break
             return self.contents
