@@ -264,15 +264,26 @@ class LCDUI_widget(object):
         """Hides the widget by not drawing it to the buffer."""
         self.visible = False
 
-    def write(self, *args):
+    def write(self, message):
         """Writes information to the widget for diplaying on the LCD. The widget manages what to do with the
         information. Text widgets just display text, but progress bars, for example, use this function to update their
-        value."""
+        value.
+        There are two ways to use this function. If you write one single string, the widget makes sure to wrap the
+        lines if necessary. If you write several lines by calling the function with a list, the function writes each
+        line to a new line, if the height of the widget permits as many lines."""
         self.contents = []
-        for i, lines in enumerate(args):
-            if i >= self.height:
-                break
-            self.contents.append(str(lines))
+        if type(message) is str:
+            # The following code does not work with special characters yet. The problem is that the function for
+            # counting those is in a different class right now.
+            print int(len(message)/self.width)
+            for n in range(min(self.height, 1+int(len(message)/self.width))):
+                self.contents.append(message[(n*self.width):((n+1)*self.width)])
+                print n
+                print message[(n*self.width):((n+1)*self.width)]
+        else:
+            for n in range(min(self.height, len(message))):
+                self.contents.append(message[n])
+        return self.contents
 
     def get_contents(self):
         """This function is used by the UI object to obtain the contents of a widget. This function also checks to see
