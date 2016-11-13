@@ -34,7 +34,7 @@ artist.start_countdown(5)
 volume.hide()
 volumet.hide()
 
-ui.print_all_info()
+ui.print_all()
 
 i=0
 v=50

@@ -178,7 +178,7 @@ class ui(object):
         """This prints all generated errors for debugging."""
         print(self.loglines)
 
-    def print_all_info(self):
+    def print_all(self):
         print("LCD INFO:")
         print("Object: %s"% self.display)
         print("Size: %dx%d, special character slots: %s" % (self.height, self.width, self.number_of_character_memory_slots))
@@ -275,14 +275,14 @@ class LCDUI_widget(object):
         if type(message) is str:
             # The following code does not work with special characters yet. The problem is that the function for
             # counting those is in a different class right now.
-            print int(len(message)/self.width)
             for n in range(min(self.height, 1+int(len(message)/self.width))):
                 self.contents.append(message[(n*self.width):((n+1)*self.width)])
-                print n
-                print message[(n*self.width):((n+1)*self.width)]
+        elif type(message) is int:
+            self.contents.append(str(message))
         else:
             for n in range(min(self.height, len(message))):
-                self.contents.append(message[n])
+                self.contents.append(str(message[n]))
+
         return self.contents
 
     def get_contents(self):
