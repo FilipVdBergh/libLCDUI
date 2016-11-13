@@ -23,6 +23,7 @@ import time
 import re
 import theme
 
+
 class character_register_manager(object):
     """Manages the register of special characters in the LCD. My LCD has 8 slots available for special characters. These
     special characters are defined by a list in the theme.py file. """
@@ -125,6 +126,9 @@ class ui(object):
         else:
             self.loglines.append("Failed to add widget %s: widget out of bounds" % (widget))
             return False
+
+    def list_widgets(self):
+        return self.widgets
 
     def redraw(self):
         """Redraw all widgets. Add this function to your main loop to update your display."""
@@ -267,7 +271,7 @@ class LCDUI_widget(object):
         self.visible = False
 
     def write(self, message):
-        """Writes information to the widget for diplaying on the LCD. The widget manages what to do with the
+        """Writes information to the widget for display on the LCD. The widget manages what to do with the
         information. Text widgets just display text, but progress bars, for example, use this function to update their
         value.
         There are two ways to use this function. If you write one single string, the widget makes sure to wrap the
@@ -275,21 +279,28 @@ class LCDUI_widget(object):
         line to a new line, if the height of the widget permits as many lines."""
         self.contents = []
         if type(message) is str:
-            # The following code does not work with special characters yet. The problem is that the function for
-            # counting those is in a different class right now.
-            for n in range(min(self.height, 1+int(len(message)/self.width))):
-                self.contents.append(message[(n*self.width):((n+1)*self.width)])
+            part = message
+            for n in range(self.height):
+                snippet = part[0:self.width]
+                if ("~" in snippet) and not("]" in snippet):
+                    brackets_close = part.index("]") + 1
+                    line_to_write = part[0:brackets_close]
+                    part = part[brackets_close:]
+                else:
+                    line_to_write = snippet
+                    part = part[self.width:]
+                self.contents.append(line_to_write)
+
         elif type(message) is int:
-            self.contents.append(str(message))
+            self.contents=str(message)
         else:
             for n in range(min(self.height, len(message))):
                 self.contents.append(str(message[n]))
-
         return self.contents
 
     def get_contents(self):
         """This function is used by the UI object to obtain the contents of a widget. This function also checks to see
-        if the timeout of a widget has expired. Expired functiona are then automatically hidden."""
+        if the timeout of a widget has expired. Expired functions are then automatically hidden."""
         if not(self.timeout == 0) and (time.time() - self.creationTime) > self.timeout:
             self.hide()
         if self.visible:

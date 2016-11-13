@@ -23,7 +23,8 @@ ui.add_widget(volume,0,0)
 ui.add_widget(alert,0,1)
 ui.add_widget(listtest,0,4)
 
-ui.print_all()
+for widget in ui.list_widgets():
+    print widget.name
 
 v = 0
 while True:
