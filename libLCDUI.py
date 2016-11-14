@@ -23,6 +23,9 @@ import time
 import re
 import theme
 
+left = 0
+right = 1
+center = 2
 
 class character_register_manager(object):
     """Manages the register of special characters in the LCD. My LCD has 8 slots available for special characters. These
@@ -242,6 +245,8 @@ class LCDUI_widget(object):
         self.timeout = 0
         self.creationTime = time.time()
         self.name = "<name not defined>"
+        self.rjust = False
+        self.center = False
 
     def set_name(self, name):
         """Sets the name of the widget. Names are not required, but may make managing larger projects easier. The names
@@ -289,14 +294,35 @@ class LCDUI_widget(object):
                 else:
                     line_to_write = snippet
                     part = part[self.width:]
-                self.contents.append(line_to_write)
+                if self.rjust:
+                    self.contents.append(line_to_write.rjust(self.width, " "))
+                elif self.center:
+                    self.contents.append(line_to_write.center(self.width, " "))
+                else:
+                    self.contents.append(line_to_write.ljust(self.width, " "))
 
-        elif type(message) is int:
-            self.contents=str(message)
+        elif type(message) is int or type(message) is float:
+            self.contents=[str(message)]
         else:
             for n in range(min(self.height, len(message))):
-                self.contents.append(str(message[n]))
+                if self.rjust:
+                    self.contents.append(str(message[n]).rjust(self.width, " "))
+                elif self.center:
+                    self.contents.append(str(message[n]).center(self.width, " "))
+                else:
+                    self.contents.append(str(message[n]).ljust(self.width, " "))
         return self.contents
+
+    def format(self, justify):
+        if justify == left:
+            self.rjust = False
+            self.center = False
+        elif justify == center:
+            self.rjust = False
+            self.center = True
+        elif justify == right:
+            self.rjust = True
+            self.center = False
 
     def get_contents(self):
         """This function is used by the UI object to obtain the contents of a widget. This function also checks to see
@@ -313,6 +339,7 @@ class text(LCDUI_widget):
     def __init__(self, width, height):
         super(text, self).__init__(self, width, height)
         self.contents = []
+
 
 class notify(LCDUI_widget):
     """Notifies are temporary text widgets. Call .show to start the display timer.
