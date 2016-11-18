@@ -284,23 +284,28 @@ class LCDUI_widget(object):
         line to a new line, if the height of the widget permits as many lines."""
         self.contents = []
         if type(message) is str:
-            part = message
+            stripped_of_special_characters = re.sub("\[(.*?)\]", "", message)
+            message_left_to_process = stripped_of_special_characters
+            special_characters = re.findall("\[(.*?)\]", message)
+            characters_matched = 0
             for n in range(self.height):
-                snippet = part[0:self.width]
-                if ("~" in snippet) and not("]" in snippet):
-                    brackets_close = part.index("]") + 1
-                    line_to_write = part[0:brackets_close]
-                    part = part[brackets_close:]
-                else:
-                    line_to_write = snippet
-                    part = part[self.width:]
+                line_to_write = ""
+                snippet = message_left_to_process[0:self.width]
+                for c in snippet:
+                    if c == "~":
+                        if characters_matched >= len(special_characters):
+                            break  # This happens if a closing bracket was not found in the message
+                        c += "[%s]" % special_characters[characters_matched]
+                        characters_matched += 1
+                    line_to_write += c
+                width_correction = len(line_to_write) - len(snippet)
                 if self.rjust:
-                    self.contents.append(line_to_write.rjust(self.width, " "))
+                    self.contents.append(line_to_write.rjust(self.width + width_correction, " ", ))
                 elif self.center:
-                    self.contents.append(line_to_write.center(self.width, " "))
+                    self.contents.append(line_to_write.center(self.width + width_correction, " "))
                 else:
-                    self.contents.append(line_to_write.ljust(self.width, " "))
-
+                    self.contents.append(line_to_write.ljust(self.width + width_correction, " "))
+                message_left_to_process = message_left_to_process[self.width:]
         elif type(message) is int or type(message) is float:
             self.contents=[str(message)]
         else:
@@ -386,7 +391,7 @@ class list(LCDUI_widget):
         """This creates the contents based on the currently viewable part of the list. For internal use in this
         class."""
         self.contents = []
-        for i in range(self.height):
+        for i in range(min(len(self.items), self.height)):
             self.contents.append(self.items[self.top_item + i])
         for i, line in enumerate(self.contents):
             if i == self.listindex - self.top_item:
@@ -398,8 +403,9 @@ class list(LCDUI_widget):
         """Move the indicator down one or more steps. Usually, this function is called in response to a button press."""
         self.listindex += steps
         if self.listindex >= len(self.items):
-            self.listindex = 0
-            self.top_item = 0
+            self.listindex = len(self.items)-1
+            #self.listindex = 0
+            #self.top_item = 0
         if self.listindex - self.top_item >= self.height:
             self.top_item += steps
         self.make_contents()
@@ -408,8 +414,9 @@ class list(LCDUI_widget):
         """Move the indicator up one or more steps. Usually, this function is called in response to a button press."""
         self.listindex -= steps
         if self.listindex < 0:
-            self.listindex = len(self.items) - 1
-            self.top_item = len(self.items) - self.height
+            self.listindex = 0
+            #self.listindex = len(self.items) - 1
+            #self.top_item = len(self.items) - self.height
         if self.listindex - self.top_item < 0:
             self.top_item -= steps
         self.make_contents()
