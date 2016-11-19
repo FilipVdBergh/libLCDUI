@@ -374,7 +374,11 @@ class list(LCDUI_widget):
         self.not_selected = not_selected
 
     def clear(self):
+        self.contents = []
         self.items = []
+        self.listindex = 0
+        self.top_item = 0
+
 
     def write(self, *args):
         """Adds a list of several items at once, first clearing the list."""
