@@ -130,6 +130,19 @@ class ui(object):
             self.loglines.append("Failed to add widget %s: widget out of bounds" % (widget))
             return False
 
+    def remove_widget(self, widget_name):
+        """Remove a widget from the UI widget list. To remove a widget, it needs to have a proper name. You can
+        give widgets names during creation by adding name=..., or you can set a name later by calling widget.set_name().
+        Note that this doesn't delete the object itself, it just takes it from the UI widget list. You can add it to
+        the list again later."""
+        reply = False
+        for i, widget in enumerate(self.widgets):
+            if widget.name == widget_name:
+                self.loglines.append("Deleted widget %s (%s)" % (widget.name, widget))
+                del self.widgets[i]
+                reply = True
+        return reply
+
     def list_widgets(self):
         return self.widgets
 
@@ -234,7 +247,7 @@ class ui(object):
 class LCDUI_widget(object):
     """Base object for all LCDUI widgets. Do not call this directly.
     I should probably make it an abstract base class in the future."""
-    def __init__(self, parent, width, height):
+    def __init__(self, parent, width, height, name="<name not defined>"):
         self.row = 0
         self.col = 0
         self.width = width
@@ -244,7 +257,7 @@ class LCDUI_widget(object):
         self.contents = []
         self.timeout = 0
         self.creationTime = time.time()
-        self.name = "<name not defined>"
+        self.name = name
         self.rjust = False
         self.center = False
 
@@ -341,16 +354,16 @@ class LCDUI_widget(object):
 
 class text(LCDUI_widget):
     """Text areas are general-purpose text widgets."""
-    def __init__(self, width, height):
-        super(text, self).__init__(self, width, height)
+    def __init__(self, width, height, name="<name not defined>"):
+        super(text, self).__init__(self, width, height, name)
         self.contents = []
 
 
 class notify(LCDUI_widget):
     """Notifies are temporary text widgets. Call .show to start the display timer.
     The display timer is also started on write. The timeout is in seconds."""
-    def __init__(self, width, height, timeout=3):
-        super(notify, self).__init__(self, width, height)
+    def __init__(self, width, height, timeout=3, name="<name not defined>"):
+        super(notify, self).__init__(self, width, height, name)
         self.timeout = timeout
         self.creationTime = time.time()
 
@@ -360,8 +373,8 @@ class list(LCDUI_widget):
     Call move_up and move_down to move the list indicator, to make the widget respond to input. The function get_selected
     returns the currently selected item, either by name or by number."""
 
-    def __init__(self, width, height):
-        super(list, self).__init__(self, width, height)
+    def __init__(self, width, height, name="<name not defined>"):
+        super(list, self).__init__(self, width, height, name)
         self.contents = []
         self.items = []
         self.listindex = 0
@@ -374,11 +387,11 @@ class list(LCDUI_widget):
         self.not_selected = not_selected
 
     def clear(self):
+        """Clears the options list."""
         self.contents = []
         self.items = []
         self.listindex = 0
         self.top_item = 0
-
 
     def write(self, *args):
         """Adds a list of several items at once, first clearing the list."""
@@ -428,6 +441,17 @@ class list(LCDUI_widget):
             self.top_item -= steps
         self.make_contents()
 
+    def set_listindex(self, index):
+        if not self.listindex == -1:
+            if index > self.listindex:
+                #print "index %s, listindex %s" % (index, self.listindex)
+                self.move_down()
+                self.set_listindex(index)
+            elif index < self.listindex:
+                #print "index %s, listindex %s" % (index, self.listindex)
+                self.move_up()
+                self.set_listindex(index)
+
     def get_selected(self, by_name = False):
         """This returns the currently selected item from the list, either by number (default) or by name.
         Usually, this function is called in response to a button press."""
@@ -461,8 +485,10 @@ class list(LCDUI_widget):
 class generic_progress_bar(LCDUI_widget):
     """A progressbar converts a value relative to a maximum value into a number of similar characters.
     The function does not support half-full characters yet."""
-    def __init__(self, width, height, current_value, max_value, horizontal_orientation=True, position_only = True):
-        super(generic_progress_bar, self).__init__(self, width, height)
+    def __init__(self, width, height, current_value, max_value,
+                 horizontal_orientation=True, position_only = True,
+                 name="<name not defined>"):
+        super(generic_progress_bar, self).__init__(self, width, height, name)
         self.current_value = current_value
         self.max_value = max_value
         self.horizontal_orientation = horizontal_orientation
@@ -500,6 +526,11 @@ class generic_progress_bar(LCDUI_widget):
                                 3: "~[SB_VERT_75]",
                                 4: "~[SB_VERT_100]"}
 
+    def set_maximum_value(self, maximum_value):
+        self.max_value = maximum_value
+        if self.current_value > self.max_value:
+            self.current_value = self.max_value
+
     def write(self, current_value):
         self.current_value = current_value
         self.contents = []
@@ -525,24 +556,32 @@ class generic_progress_bar(LCDUI_widget):
 
 class vertical_progress_bar(generic_progress_bar):
     """A vertical progress bar that fills up."""
-    def __init__(self, width, height, current_value, max_value):
-        super(vertical_progress_bar, self).__init__(width, height, current_value, max_value, horizontal_orientation=False, position_only=False)
+    def __init__(self, width, height, current_value, max_value, name="<name not defined>"):
+        super(vertical_progress_bar, self).__init__(width, height, current_value, max_value,
+                                                    horizontal_orientation=False,
+                                                    position_only=False,
+                                                    name=name)
 
 class horizontal_progress_bar(generic_progress_bar):
     """A horizontal progress bar that fills up."""
-    def __init__(self, width, height, current_value, max_value):
-        super(horizontal_progress_bar, self).__init__(width, height, current_value, max_value, horizontal_orientation=True, position_only=False)
+    def __init__(self, width, height, current_value, max_value, name="<name not defined>"):
+        super(horizontal_progress_bar, self).__init__(width, height, current_value, max_value,
+                                                      horizontal_orientation=True,
+                                                      position_only=False,
+                                                      name=name)
 
 class vertical_position_bar(generic_progress_bar):
     """A vertical position bar draws and indicator on an interval."""
-    def __init__(self, width, height, current_value, max_value):
+    def __init__(self, width, height, current_value, max_value, name="<name not defined>"):
         super(vertical_position_bar, self).__init__(width, height, current_value, max_value,
                                                     horizontal_orientation=False,
-                                                    position_only=True)
+                                                    position_only=True,
+                                                    name=name)
 
 class horizontal_position_bar(generic_progress_bar):
     """A horizontal position bar draws and indicator on an interval."""
-    def __init__(self, width, height, current_value, max_value):
+    def __init__(self, width, height, current_value, max_value, name="<name not defined>"):
         super(horizontal_position_bar, self).__init__(width, height, current_value, max_value,
                                                       horizontal_orientation=True,
-                                                      position_only=True)
+                                                      position_only=True,
+                                                      name=name)
