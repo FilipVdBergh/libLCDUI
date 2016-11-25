@@ -106,6 +106,8 @@ class ui(object):
         self.log = log
         self.loglines = []
         self.displaylines = []
+        self.current_displaylines = []
+        self.optimize_redraw = False
         self.clear()
         self.number_of_character_memory_slots = 8
         self.theme_stdout = 0
@@ -171,10 +173,27 @@ class ui(object):
                 print("|" + line[:self.width] + "|")
             print("*" + "-" * self.width + "*")
         else:
-            # print time.time() # The next step takes about 10ms
-            for i, line in enumerate(self.displaylines):
-                self.display.set_cursor(0,i)
-                self.display.message(line[:self.width])
+            if self.optimize_redraw:
+                for row, line in enumerate(self.displaylines):
+                    for column, character in enumerate(line):
+                        if self.displaylines[row][column] != self.current_displaylines[row][column]:
+                            k += 1
+                            try:
+                                self.display.set_cursor(column, row)
+                                self.display.message(character)
+                            except:
+                                print("Display error in line '%s'" % line[:self.width])
+            else:
+                for row, line in enumerate(self.displaylines):
+                    try:
+                        self.display.set_cursor(0, row)
+                        self.display.message(line[:self.width])
+                    except:
+                        print("Display error in line '%s'" % line[:self.width])
+
+        # Here we make a copy of the information that is currently being displayed. This helps us to compare if there
+        # is any new information to be displayed.
+        self.current_displaylines = self.displaylines[:]
 
     def enable_display(self, switch):
         self.display.enable_display(switch)
@@ -226,16 +245,9 @@ class ui(object):
         """Replaces codes for special characters by codes the LCD can interpret. Also registers special characters from
         the theme file to the LCD memory. LCDs can generally display up to 8 special characters. If this limit is
         reached, all further special characters are replaced by question marks."""
-        # t = time.time()
-        #print("Special character replacement %s" % time.time())
-        #print(" %s Loop over %s lines" % (s, time.time()-t))
         for match in re.findall("~\[(.*?)\]", line):
-            #print(" %s Regex" % time.time())
             self.register.add_character(match, theme.symbol[match][self.theme_display])
-            #print(" %s Character added to object" % time.time())
-            #print(" %s Character written to lcd" % time.time())
             line = line.replace("~[" + match + "]", self.register.get_escape_code(match))
-            #print(" %s Regex replacement" % time.time())
         return line
 
     def replace_special_characters_for_stdout(self, line):
