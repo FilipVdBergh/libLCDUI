@@ -347,6 +347,7 @@ class LCDUI_widget(object):
         return self.contents
 
     def format(self, option):
+        """Sets text justification. You can pass libLCDUI.left, .right or .center to justify text."""
         if option == left:
             self.rjust = False
             self.center = False
@@ -368,7 +369,8 @@ class LCDUI_widget(object):
             return ""
 
 class scrolltext(LCDUI_widget):
-    """Text areas are general-purpose text widgets."""
+    """A scrolltext is a single text widget. If the line written to this widget is wider than the widget width, the text
+    will scroll."""
     def __init__(self, width, height, name="<name not defined>"):
         super(scrolltext, self).__init__(self, width, height, name)
         self.contents = ""
@@ -379,20 +381,21 @@ class scrolltext(LCDUI_widget):
         self.scroll_position = 0
 
     def set_scroll_speed(self, scroll_speed):
+        """Sets the speed by which the text scrolls by in jumps per second."""
         self.scroll_speed = scroll_speed
 
     def set_scroll_pause(self, scroll_pause):
+        """Sets the time to display the start of the line before the widget starts scrolling."""
         self.pause_before_scroll = scroll_pause
 
     def write(self, message):
-        """This is an experimental function to write scrolling messages. Scrolling messages are an afterthought, and
-        therefore this implementation is very messy."""
+        """Sets the single text line to display inm the widget. The line may be longer than the widget width."""
         if time.time() - self.pause_timer > self.pause_before_scroll:
             if time.time() - self.scroll_timer > self.scroll_speed:
                 discarded_part = message[0:self.scroll_position]
                 if "~" in discarded_part:
                     self.scroll_position = message.index["]"]
-                if self.scroll_position > (len(re.sub("\[(.*?)\]", "", message))/2):
+                if self.scroll_position > len(re.sub("\[(.*?)\]", "", message))-(self.width/2):
                     self.scroll_position = 0
                     self.pause_timer = time.time()
                 super(scrolltext, self).write(message[self.scroll_position:])
@@ -405,6 +408,7 @@ class scrolltext(LCDUI_widget):
 
 class text(LCDUI_widget):
     """Text areas are general-purpose text widgets."""
+
     def __init__(self, width, height, name="<name not defined>"):
         super(text, self).__init__(self, width, height, name)
         self.contents = []
@@ -412,7 +416,9 @@ class text(LCDUI_widget):
 
 class notify(LCDUI_widget):
     """Notifies are temporary text widgets. Call .show to start the display timer.
-    The display timer is also started on write. The timeout is in seconds."""
+    The display timer is also started on write. The timeout is in seconds. All widgets can have a timeout. This just
+    class allows setting the timeout from init."""
+
     def __init__(self, width, height, timeout=3, name="<name not defined>"):
         super(notify, self).__init__(self, width, height, name)
         self.timeout = timeout
