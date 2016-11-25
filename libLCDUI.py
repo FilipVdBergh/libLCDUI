@@ -177,7 +177,6 @@ class ui(object):
                 for row, line in enumerate(self.displaylines):
                     for column, character in enumerate(line):
                         if self.displaylines[row][column] != self.current_displaylines[row][column]:
-                            k += 1
                             try:
                                 self.display.set_cursor(column, row)
                                 self.display.message(character)
