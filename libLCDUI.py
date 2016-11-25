@@ -26,6 +26,7 @@ import theme
 left = 0
 right = 1
 center = 2
+scroll = False
 
 class character_register_manager(object):
     """Manages the register of special characters in the LCD. My LCD has 8 slots available for special characters. These
@@ -96,14 +97,13 @@ class character_register_manager(object):
 
 class ui(object):
     """Basic ui object. This object contains all drawable widgets and is responsible for the draw action."""
-    def __init__(self, display=None, width=20, height=4, rgb=(1.0, 1.0, 1.0), log=False):
+    def __init__(self, display=None, width=20, height=4, rgb=(1.0, 1.0, 1.0)):
         self.display = display
         self.widgets = []
         self.rgb = rgb
         self.intensity = 0
         self.width = width
         self.height = height
-        self.log = log
         self.loglines = []
         self.displaylines = []
         self.current_displaylines = []
@@ -205,6 +205,9 @@ class ui(object):
         self.rgb = (red, green, blue)
         self.display.set_color(red, green, blue)
 
+    def set_optimize_redraw(self, optimize_redraw = False):
+        self.optimize_redraw = optimize_redraw
+
     def print_widgets(self):
         """Print a list of all widgets to stdout. Mostly useful for debugging your interface."""
         for i, widget in enumerate(self.widgets):
@@ -266,6 +269,7 @@ class LCDUI_widget(object):
         self.parent = parent
         self.visible = True
         self.contents = []
+        self.raw_message = None
         self.timeout = 0
         self.creationTime = time.time()
         self.name = name
@@ -342,14 +346,14 @@ class LCDUI_widget(object):
                     self.contents.append(str(message[n]).ljust(self.width, " "))
         return self.contents
 
-    def format(self, justify):
-        if justify == left:
+    def format(self, option):
+        if option == left:
             self.rjust = False
             self.center = False
-        elif justify == center:
+        elif option == center:
             self.rjust = False
             self.center = True
-        elif justify == right:
+        elif option == right:
             self.rjust = True
             self.center = False
 
@@ -362,6 +366,42 @@ class LCDUI_widget(object):
             return self.contents
         else:
             return ""
+
+class scrolltext(LCDUI_widget):
+    """Text areas are general-purpose text widgets."""
+    def __init__(self, width, height, name="<name not defined>"):
+        super(scrolltext, self).__init__(self, width, height, name)
+        self.contents = ""
+        self.scroll_speed = 0.5
+        self.pause_before_scroll = 5
+        self.scroll_timer = time.time()
+        self.pause_timer = time.time()
+        self.scroll_position = 0
+
+    def set_scroll_speed(self, scroll_speed):
+        self.scroll_speed = scroll_speed
+
+    def set_scroll_pause(self, scroll_pause):
+        self.pause_before_scroll = scroll_pause
+
+    def write(self, message):
+        """This is an experimental function to write scrolling messages. Scrolling messages are an afterthought, and
+        therefore this implementation is very messy."""
+        if time.time() - self.pause_timer > self.pause_before_scroll:
+            if time.time() - self.scroll_timer > self.scroll_speed:
+                discarded_part = message[0:self.scroll_position]
+                if "~" in discarded_part:
+                    self.scroll_position = message.index["]"]
+                if self.scroll_position > (len(re.sub("\[(.*?)\]", "", message))/2):
+                    self.scroll_position = 0
+                    self.pause_timer = time.time()
+                super(scrolltext, self).write(message[self.scroll_position:])
+                self.scroll_position += 1
+                self.scroll_timer = time.time()
+        else:
+            super(scrolltext, self).write(message)
+
+
 
 class text(LCDUI_widget):
     """Text areas are general-purpose text widgets."""
